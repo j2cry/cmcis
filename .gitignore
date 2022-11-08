@@ -1,0 +1,9 @@
+**/__pycahce__/**
+/venv/
+/archieve/
+/pgdata/
+/sql/init.sql
+draft.ipynb
+TODO
+.env
+my.cnf
