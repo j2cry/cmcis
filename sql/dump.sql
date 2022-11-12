@@ -39,7 +39,7 @@ CREATE TABLE harpy.activity (
     place integer NOT NULL,
     max_visitors smallint,
     showtime timestamp without time zone,
-    openreg character varying(20),
+    openreg character varying(30),
     info text,
     created timestamp without time zone DEFAULT now() NOT NULL
 );

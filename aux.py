@@ -1,5 +1,7 @@
+import re
 from typing import List
 from telegram import ReplyKeyboardMarkup
+from string import punctuation
 
 
 def build_menu(schema: List[List], **kwargs):
@@ -32,6 +34,10 @@ class ShowEvent(dict):
     def formatted_title(self, multirow=False):
         return self['showtime'].strftime('%d/%m/%Y, %H:%M') + ('\n' if multirow else ' ') + self['title']
 
+    @property
+    def filename(self):
+        return re.sub(rf'[{punctuation}]|\s', '_', self.formatted_title()) + '.csv'
+
 
 class ConversationState:
     MAIN_MENU = 1
@@ -56,7 +62,7 @@ class TGText:
     END = 'До встречи!'
     EVENTS = 'Вот доступные сеансы, на которые вы еще не зарегистрированы. Сеансы, на которые вы уже зарегистрированы, можно найти в разделе "Мои записи"'
     MY_EVENTS = 'Вот сеансы, на которые вы записаны'
-    NO_EVENTS = 'Нет доступных сеансов'
+    NO_EVENTS = 'Нет анонсированных сеансов'
     NO_MY_EVENTS = 'У вас еще нет записей на сеансы'
     BACK = 'Назад'
     FREE_PLACES = 'На этот сеанс осталось %s мест'
@@ -68,7 +74,8 @@ class TGText:
     REGISTER_CANCEL = 'Вы отменили запись на сеанс'
     DOWNLOAD = 'Запрошен файл по'
     ACTION_CANCELED = 'Изменения не внесены'
-    ADMIN = 'Служебная информация'
+    ADMIN_EVENTS = 'Служебная информация: сеансы'
     YES = 'Да'
     NO = 'Нет'
     HELLO = 'Привет!'
+    NO_REGISTRATIONS = 'На этот сеанс еще никто не зарегистрирован.'

@@ -64,7 +64,7 @@ def information(query, context, use_backward=False):
         NO_EVENTS_TEXT = TGText.NO_MY_EVENTS
     elif (text == TGMenu.ADMIN_INFO) and admin_status:
         print('ADMIN COMMAND')
-        EVENT_TEXT = f'{TGText.ADMIN}: {TGText.EVENTS.lower()}'
+        EVENT_TEXT = f'{TGText.ADMIN_EVENTS}'
         NO_EVENTS_TEXT = TGText.NO_EVENTS
     elif text == TGMenu.GOODBYE:
         print('END CONVERSATION: GOODBYE')
@@ -118,11 +118,21 @@ def registration(query, context):
     # show event description
     # query.message.reply_text(f'{event.formatted_title(multirow=False)} {TGText.FREE_PLACES % event.free_places}',
     #                          reply_markup=None, parse_mode=ParseMode.MARKDOWN)
-    query.message.reply_text(TGText.FREE_PLACES % event.free_places, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+
+    # analyse backward and show
+    if (backward != TGMenu.ADMIN_INFO):
+        query.message.reply_text(TGText.FREE_PLACES % event.free_places, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
     
     # build registration menu
     accept_menu = build_menu([[TGText.YES, TGText.NO]], resize_keyboard=True)
     if admin_status and (backward == TGMenu.ADMIN_INFO):
+        # request info
+        rawreport = context.user_data['connector'].get_visitors_info(event['activity_id'])
+        if rawreport:
+            context.user_data['report'] = rawreport
+        else:
+            query.message.reply_text(TGText.NO_REGISTRATIONS)      # backward menu
+            return information(query, context, use_backward=True)
         EVENT_TEXT = TGText.ADMIN_REQUEST
     elif event.isregistred(user['id']):
         EVENT_TEXT = TGText.ALREADY_REGISTRED
@@ -149,10 +159,9 @@ def update_register(query, context):
         if admin_status and (backward == TGMenu.ADMIN_INFO):
             print('DOWNLOAD FILE')
             EVENT_TEXT = f'{TGText.DOWNLOAD} {EVENT_TITLE}'
-            filename = pathlib.Path('reports').joinpath(EVENT_TITLE.replace(' ', '_') + '.csv').as_posix()
-            # request info and save
-            raw = context.user_data['connector'].get_visitors_info(event['activity_id'])
-            save_report(filename, raw)
+            filename = pathlib.Path('reports').joinpath(event.filename).as_posix()
+            save_report(filename, context.user_data['report'])
+            context.user_data.pop('report')
             # send in chat
             with open(filename, 'rb') as file:
                 query.message.reply_document(file)
