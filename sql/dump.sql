@@ -39,12 +39,55 @@ CREATE TABLE harpy.activity (
     place integer NOT NULL,
     max_visitors smallint,
     showtime timestamp without time zone,
-    description text,
+    openreg character varying(20),
+    info text,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
 ALTER TABLE harpy.activity OWNER TO cmcismaster;
+
+--
+-- Name: COLUMN activity.title; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.title IS 'Activity title';
+
+
+--
+-- Name: COLUMN activity.place; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.place IS 'Activity place info';
+
+
+--
+-- Name: COLUMN activity.max_visitors; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.max_visitors IS 'Max number of visitors';
+
+
+--
+-- Name: COLUMN activity.showtime; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.showtime IS 'Date and time of show';
+
+
+--
+-- Name: COLUMN activity.openreg; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.openreg IS 'Start registration date & time';
+
+
+--
+-- Name: COLUMN activity.info; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.info IS 'Addtitional information';
+
 
 --
 -- Name: activity_activity_id_seq; Type: SEQUENCE; Schema: harpy; Owner: cmcismaster
@@ -77,7 +120,7 @@ CREATE TABLE harpy.booking (
     activity_id integer NOT NULL,
     actual boolean NOT NULL,
     modified timestamp without time zone DEFAULT now() NOT NULL,
-    changes smallint DEFAULT 0,
+    num_changes smallint DEFAULT 0,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -88,14 +131,14 @@ ALTER TABLE harpy.booking OWNER TO cmcismaster;
 -- Name: COLUMN booking.client_id; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.booking.client_id IS 'telegram user identifier';
+COMMENT ON COLUMN harpy.booking.client_id IS 'Telegram user identifier';
 
 
 --
 -- Name: COLUMN booking.activity_id; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.booking.activity_id IS 'activity identifier';
+COMMENT ON COLUMN harpy.booking.activity_id IS 'Activity identifier';
 
 
 --
@@ -109,14 +152,14 @@ COMMENT ON COLUMN harpy.booking.actual IS 'Booking actuality';
 -- Name: COLUMN booking.modified; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.booking.modified IS 'last modified timestamp';
+COMMENT ON COLUMN harpy.booking.modified IS 'Last modified timestamp';
 
 
 --
--- Name: COLUMN booking.changes; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+-- Name: COLUMN booking.num_changes; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.booking.changes IS 'Number of changes';
+COMMENT ON COLUMN harpy.booking.num_changes IS 'Number of changes';
 
 
 --
@@ -139,7 +182,14 @@ ALTER TABLE harpy.client OWNER TO cmcismaster;
 -- Name: COLUMN client.client_id; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.client.client_id IS 'telegram user identifier';
+COMMENT ON COLUMN harpy.client.client_id IS 'Telegram user identifier';
+
+
+--
+-- Name: COLUMN client.is_admin; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.client.is_admin IS 'Bot administrator status';
 
 
 --
@@ -148,7 +198,7 @@ COMMENT ON COLUMN harpy.client.client_id IS 'telegram user identifier';
 
 CREATE TABLE harpy.place (
     place_id integer NOT NULL,
-    description text,
+    info text,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -163,10 +213,10 @@ COMMENT ON COLUMN harpy.place.place_id IS 'Place identifier';
 
 
 --
--- Name: COLUMN place.description; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+-- Name: COLUMN place.info; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.place.description IS 'Place description';
+COMMENT ON COLUMN harpy.place.info IS 'Addtitional info';
 
 
 --

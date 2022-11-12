@@ -67,7 +67,7 @@ class BotConnector():
                 FROM {self.schema}.booking 
                 WHERE actual
                 GROUP BY activity_id) 
-            SELECT a.activity_id, title, place, max_visitors, showtime, description, r.visitors 
+            SELECT a.activity_id, title, place, max_visitors, showtime, info, r.visitors 
             FROM {self.schema}.activity a 
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
             WHERE (NOW() < showtime)'''
@@ -93,19 +93,19 @@ class BotConnector():
     def set_registration(self, client_id, activity_id, value):
         """ Update user registration row """
         BASIC_QUERY = f'''
-            INSERT INTO {self.schema}.booking (client_id, activity_id, actual, modified, changes) 
+            INSERT INTO {self.schema}.booking (client_id, activity_id, actual, modified, num_changes) 
             VALUES (%s, %s, %s, NOW(), 0) 
             ON CONFLICT (client_id, activity_id) DO UPDATE 
             SET actual = EXCLUDED.actual,
                 modified = EXCLUDED.modified,
-                changes = {self.schema}.booking.changes + 1'''
+                num_changes = {self.schema}.booking.num_changes + 1'''
         parameters = (client_id, activity_id, value)
         self.__cursor.execute(BASIC_QUERY, parameters)
     
     @manage_connection
     def get_visitors_info(self, activity_id):
         BASIC_QUERY = f'''
-            SELECT c.*, b.changes FROM {self.schema}.client c
+            SELECT c.*, b.num_changes FROM {self.schema}.client c
             JOIN {self.schema}.booking b on b.client_id = c.client_id
             WHERE (b.activity_id = %s) AND b.actual'''
         self.__cursor.execute(BASIC_QUERY, (activity_id, ))
