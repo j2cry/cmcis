@@ -7,7 +7,7 @@
 .dockerignore
 .env
 .gitignore
-compose.yaml
+docker-compose.yaml
 dockerfile
 draft.ipynb
 my.cnf
