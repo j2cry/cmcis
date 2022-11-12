@@ -1,0 +1,15 @@
+**/__pycache__/**
+/archieve/
+/custom-postgres/
+/pgdata/
+/sql/
+**/venv/**
+.dockerignore
+.env
+.gitignore
+compose.yaml
+dockerfile
+draft.ipynb
+my.cnf
+readme.md
+TODO

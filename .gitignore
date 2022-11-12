@@ -1,9 +1,9 @@
 **/__pycache__/**
-/venv/
 /archieve/
 /pgdata/
 /sql/init.sql
-draft.ipynb
-TODO
+**/venv/**
 .env
+draft.ipynb
 my.cnf
+TODO

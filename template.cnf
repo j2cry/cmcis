@@ -1,6 +1,6 @@
 [DATABASE]
 host=$DBHOST
-port=#DBPORT
+port=$DBPORT
 name=$DBNAME
 user=$PSQL_USER
 schema=$SCHEMA
