@@ -19,11 +19,11 @@ services:
     command:
       - -c
       - |
-        export DBNAME=${DBNAME}
+        export DBHOST=${DBHOST} DBPORT=${DBPORT} DBNAME=${DBNAME} SCHEMA=${SCHEMA} TGTOKEN={TGTOKEN}
         export PSQL_HANDLER_USER=${PSQL_HANDLER_USER} PSQL_HANDLER_PASSWORD=${PSQL_HANDLER_PASSWORD}
         export PSQL_USER=${PSQL_USER} PSQL_PASSWORD=${PSQL_PASSWORD}
         envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql
-        unset DBNAME PSQL_HANDLER_USER PSQL_HANDLER_PASSWORD PSQL_USER PSQL_PASSWORD
+        unset DBHOST DBPORT DBNAME SCHEMA TGTOKEN PSQL_HANDLER_USER PSQL_HANDLER_PASSWORD PSQL_USER PSQL_PASSWORD
 
   cmcis-postgres:
     <<: *cmcis-common
