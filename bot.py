@@ -87,7 +87,7 @@ def information(query, context, use_backward=False):
     context.user_data['backward'] = text
 
     # collect events for context
-    ev_names = [f'{ev["showtime"]}\n {ev["title"]}' for ev in events]     # collect button names    NOTE: NAMES COLLISION !!!
+    ev_names = [f'{ev.formatted_title(multirow=True)}' for ev in events]     # collect button names    NOTE: NAMES COLLISION !!! TODO: display free places on keyboard
     context.user_data['events'] = dict(zip(ev_names, events))       # update user context
     # build events menu and store it
     menu_items = [*list(map(lambda x: [x], ev_names)), [TGMenu.BACK]]
@@ -116,8 +116,9 @@ def registration(query, context):
     # update context
     context.user_data['selected_event'] = event
     # show event description
-    query.message.reply_text(f'{event["showtime"]} {event["title"]} {TGText.FREE_PLACES}: {event.free_places}',
-                             reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+    # query.message.reply_text(f'{event.formatted_title(multirow=False)} {TGText.FREE_PLACES % event.free_places}',
+    #                          reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+    query.message.reply_text(TGText.FREE_PLACES % event.free_places, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
     
     # build registration menu
     accept_menu = build_menu([[TGText.YES, TGText.NO]], resize_keyboard=True)
@@ -144,7 +145,7 @@ def update_register(query, context):
         # return information(query, context, use_backward=True)
 
     if text == TGMenu.ACCEPT:
-        EVENT_TITLE = f'{event["showtime"]} {event["title"]}'
+        EVENT_TITLE = event.formatted_title(multirow=False)
         if admin_status and (backward == TGMenu.ADMIN_INFO):
             print('DOWNLOAD FILE')
             EVENT_TEXT = f'{TGText.DOWNLOAD} {EVENT_TITLE}'

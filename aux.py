@@ -28,6 +28,9 @@ class ShowEvent(dict):
         val = uid in self['visitors'] if self['visitors'] else False
         print(val)
         return val
+    
+    def formatted_title(self, multirow=False):
+        return self['showtime'].strftime('%d/%m/%Y, %H:%M') + ('\n' if multirow else ' ') + self['title']
 
 
 class ConversationState:
@@ -37,8 +40,8 @@ class ConversationState:
 
 class TGMenu:
     WELCOME = 'Привет'
-    ANNOUNCE = 'Анонсы'
-    PERSONAL = 'Мои сеансы'
+    ANNOUNCE = 'Доступные сеансы'
+    PERSONAL = 'Мои записи'
     GOODBYE = 'До свидания'
     BACK = 'Назад'
     ACCEPT = 'Да'
@@ -47,25 +50,24 @@ class TGMenu:
 
 
 class TGText:
-    WELCOME = 'Привет! Меня зовут Harpy. Выбери, чем я могу тебе помочь.'       # имя лучше кириллицей
+    WELCOME = 'Привет! Меня зовут Harpy. Выберите, чем я могу вам помочь.'
     WELCOME_ADMIN = 'Привет, Гуру'
-    MENU = 'Выбери, чем я могу тебе помочь.'
+    MENU = 'Выберите, чем я могу вам помочь.'
     END = 'До встречи!'
-    EVENTS = 'Запланированные сеансы'
-    MY_EVENTS = 'Мои сеансы'
-    NO_EVENTS = 'Нет запланированных сеансов'
-    NO_MY_EVENTS = 'Вы пока не записаны на сеансы '
+    EVENTS = 'Вот доступные сеансы, на которые вы еще не зарегистрированы. Сеансы, на которые вы уже зарегистрированы, можно найти в разделе "Мои записи"'
+    MY_EVENTS = 'Вот сеансы, на которые вы записаны'
+    NO_EVENTS = 'Нет доступных сеансов'
+    NO_MY_EVENTS = 'У вас еще нет записей на сеансы'
     BACK = 'Назад'
-    FREE_PLACES = 'осталось мест'
-    ERROR = 'Кажется, что-то пошло не так. Попробуй еще раз.'
-    NOT_MODIFIED = 'Изменения не внесены'
+    FREE_PLACES = 'На этот сеанс осталось %s мест'
+    ERROR = 'Кажется, что-то пошло не так. Попробуйте еще раз.'
     ADMIN_REQUEST = 'Скачать информацию о записях?'
     ALREADY_REGISTRED = 'Вы уже записаны на сеанс, хотите отменить запись?'
     NOT_YET_REGISTRED = 'Вы еще не записаны, хотите записаться?'
-    REGISTED_ACCEPT = 'Вы записаны на'
-    REGISTER_CANCEL = 'Вы отменили запись на'
+    REGISTED_ACCEPT = 'Вы записаны на сеанс'
+    REGISTER_CANCEL = 'Вы отменили запись на сеанс'
     DOWNLOAD = 'Запрошен файл по'
-    ACTION_CANCELED = 'Действие отменено.'
+    ACTION_CANCELED = 'Изменения не внесены'
     ADMIN = 'Служебная информация'
     YES = 'Да'
     NO = 'Нет'
