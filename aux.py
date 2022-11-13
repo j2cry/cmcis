@@ -1,10 +1,11 @@
+import os
 import re
+import pathlib
 from typing import List
-from telegram import ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, ParseMode
 from string import punctuation
-
-
-LINK = 'https://t.me/land_of_untold_stories'
+from dictionary import TGMenu, TGText
+from collections import namedtuple
 
 
 def build_menu(schema: List[List], **kwargs):
@@ -31,7 +32,6 @@ class ShowEvent(dict):
 
     def isregistred(self, uid):
         val = uid in self['visitors'] if self['visitors'] else False
-        print(val)
         return val
     
     def formatted_title(self, multirow=False):
@@ -46,41 +46,91 @@ class ConversationState:
     MAIN_MENU = 1
     SELECT_EVENT = 2
     SELECT_ACTION = 3
+    CONFIRM_ACTION = 4
 
 
-class TGMenu:
-    WELCOME = 'Привет'
-    ANNOUNCE = 'Доступные сеансы'
-    PERSONAL = 'Мои записи'
-    GOODBYE = 'До свидания'
-    BACK = 'Назад'
-    ACCEPT = 'Да'
-    DECLINE = 'Нет'
-    ADMIN_INFO = 'Служебная информация'
-    DEBUG = 'debug'
+class AcceptedQAPair:
+    def __init__(self, question, answer):
+        """ Question pair for `accepted` case """
+        self.question = question if question else TGText.DEFAULT_CONFIRM_QUESTION
+        self.answer = answer if answer else TGText.DEFAULT_ACCEPTED
+
+# AcceptedQAPair = namedtuple('AcceptedQAPair', 'question,answer', defaults=(TGText.DEFAULT_CONFIRM_QUESTION, TGText.DEFAULT_ACCEPTED))
 
 
-class TGText:
-    WELCOME = 'Привет! Меня зовут Harpy. Выберите, чем я могу вам помочь.'
-    WELCOME_ADMIN = 'Привет, Гуру'
-    MENU = 'Выберите, чем я могу вам помочь.'
-    END = 'До встречи!'
-    EVENTS = 'Вот доступные сеансы, на которые вы еще не зарегистрированы. Сеансы, на которые вы уже зарегистрированы, можно найти в разделе "Мои записи"'
-    MY_EVENTS = 'Вот сеансы, на которые вы записаны'
-    NO_EVENTS = f'На данный момент новых мероприятий не анонсировано. Подписывайтесь и следите за новостями в [основном канале]({LINK}).'
-    NO_MY_EVENTS = 'У вас еще нет записей на сеансы'
-    BACK = 'Назад'
-    FREE_PLACES = 'На этот сеанс осталось %s мест'
-    ERROR = 'Кажется, что-то пошло не так. Попробуйте еще раз.'
-    ADMIN_REQUEST = 'Скачать информацию о записях?'
-    ALREADY_REGISTRED = 'Вы уже записаны на сеанс, хотите отменить запись?'
-    NOT_YET_REGISTRED = 'Вы еще не записаны, хотите записаться?'
-    REGISTED_ACCEPT = 'Вы записаны на сеанс'
-    REGISTER_CANCEL = 'Вы отменили запись на сеанс'
-    DOWNLOAD = 'Запрошен файл по'
-    ACTION_CANCELED = 'Изменения не внесены'
-    ADMIN_EVENTS = 'Служебная информация: сеансы'
-    YES = 'Да'
-    NO = 'Нет'
-    HELLO = 'Привет!'
-    NO_REGISTRATIONS = 'На этот сеанс еще никто не зарегистрирован.'
+class CallbackAction:
+    """ Callback with description """
+    def __init__(self, callback, qpos, apos, qneg, aneg):
+        """ Init action callback handler """
+        self.callback = callback if callback else lambda *args, **kw: None
+        self.positive = AcceptedQAPair(qpos, apos)
+        self.negative = AcceptedQAPair(qneg, aneg)
+        # self.positive = AcceptedQAPair(qpos if qpos else TGText.DEFAULT_CONFIRM_QUESTION, apos if apos else TGText.DEFAULT_ACCEPTED)
+        # self.negative = AcceptedQAPair(qneg if qneg else TGText.DEFAULT_CONFIRM_QUESTION, aneg if aneg else TGText.DEFAULT_ACCEPTED)
+    
+    def __call__(self, *args, **kwargs):
+        return self.callback(*args, **kwargs)
+
+
+class TGActions:
+    def __init__(self):
+        # map button title with its variable name
+        self.__mapper = {v: k.lower() for k, v in TGMenu.__dict__.items() if not (k.startswith('__') and k.endswith('__'))}
+        # TODO нормальный регистратор функций
+
+        # question/answer definitions
+        self.qneg_download_registred = TGText.REGISTRATIONS_REQUEST
+        self.aneg_download_registred = TGText.REGISTRATIONS_DOWNLOAD
+
+        self.qpos_switch_register = TGText.REGISTRED_POSITIVE
+        self.apos_switch_register = TGText.REGISTER_ACCEPTED        
+        self.qneg_switch_register = TGText.REGISTRED_NEGATIVE
+        self.aneg_switch_register = TGText.REGISTER_CANCELLED
+
+        self.qneg_send_notify = TGText.NOTIFY_REQUEST
+        self.aneg_send_notify = TGText.NOTIFY_SENT
+
+    def get(self, name):
+        fname = self.__mapper.get(name, '')
+        func = getattr(self, f'func_{fname}', None)
+        qpos = getattr(self, f'qpos_{fname}', None)
+        apos = getattr(self, f'apos_{fname}', None)
+        qneg = getattr(self, f'qneg_{fname}', None)
+        aneg = getattr(self, f'aneg_{fname}', None)
+        return CallbackAction(func, qpos, apos, qneg, aneg)
+    
+    # === action definitions ===
+    # return succeed, answer_state (shows which answer to use)
+    @staticmethod
+    def func_download_registred(query, context):
+        """ Download file with registred users """
+        event = context.user_data['selected_event']
+        filename = pathlib.Path('reports').joinpath(event.filename).as_posix()
+        save_report(filename, context.user_data.get('report'))
+        # send to chat
+        with open(filename, 'rb') as file:
+            query.message.reply_document(file)
+        # remove file from disk
+        os.remove(filename)
+        return True, False
+
+    @staticmethod
+    def func_switch_register(query, context):
+        """ Switch user registration """
+        user = query.message.from_user
+        if not (event := context.user_data.get('selected_event')):
+            return False
+        updated = not event.isregistred(user['id'])
+        context.user_data['connector'].set_registration(user['id'], event['activity_id'], updated)
+        return True, updated
+    
+    @staticmethod
+    def func_send_notify(query, context):
+        """ Notify subscribers """
+        event = context.user_data['selected_event']
+        params = (event['showtime'].strftime('%d/%m/%Y'), event['showtime'].strftime('%H:%M'))
+        for row in context.user_data.get('report'):
+            context.bot.send_message(row['client_id'], TGText.NOTIFICATION % params, parse_mode=ParseMode.MARKDOWN)
+        return True, False
+
+actions = TGActions()

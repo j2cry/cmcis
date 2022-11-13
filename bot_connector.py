@@ -2,7 +2,8 @@ import keyring
 import psycopg2
 from psycopg2.extras import DictCursor
 from functools import wraps
-from aux import TGMenu, ShowEvent
+from aux import ShowEvent
+from dictionary import TGMenu
 
 
 OPEN_REG_INTERVAL = '1 month'        # TODO in SQL column
@@ -81,9 +82,11 @@ class BotConnector():
         elif mode == TGMenu.PERSONAL:
             add_condition = ' AND %s = ANY(r.visitors)'
             parameters = (kwargs.get('uid'), )
-        elif mode == TGMenu.ADMIN_INFO:
+        elif mode == TGMenu.SERVICE:
             add_condition = ''
             parameters = None
+        else:
+            return []
 
         self.__cursor.execute(BASIC_QUERY + add_condition, parameters)
         result = [ShowEvent(ev) for ev in self.__cursor.fetchall()]

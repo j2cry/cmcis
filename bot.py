@@ -1,13 +1,14 @@
 import logging
-import os
 import pathlib
 import configparser
 import keyring
 from telegram import ParseMode
-from telegram.ext import Updater, ConversationHandler, MessageHandler
+from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler
 from telegram.ext.filters import Filters
-from aux import ConversationState, TGText, TGMenu, build_menu, save_report
+from aux import ConversationState, actions, build_menu
+from dictionary import  TGText, TGMenu
 from bot_connector import BotConnector
+
 
 # TODO logging: replace print with log
 # # init logger
@@ -23,21 +24,24 @@ config = configparser.ConfigParser()
 config.read(CONFIG_FILE.as_posix())
 
 
-def debugger(query, context, backward=None):
+def debugger(query, context):
     """ For manual testing new features or development """
     query.message.reply_text('DEBUG ACTION')
-    print(context)
-    print(type(context))
-    print(type(query))
-
-    # context.bot.send_message(1474200050, 'this message was sent via user id')   # ferra
-    # context.bot.send_message(1078182637, 'this message was sent via user id')
+    return ConversationState.MAIN_MENU
 
 
-def start(query, context, backward=None):
-    """ Init conversation """
+def show_start_menu(query, context, custom_text=None):
+    """ Drop conversation and show start menu """
+    query.message.reply_text(custom_text if custom_text else TGText.FAREWELL, reply_markup=build_menu([[TGMenu.HELLO]], resize_keyboard=True))
+    return ConversationHandler.END
+
+
+def show_main_menu(query, context, custom_text=None):
+    """ Initialize conversation and show main menu """
+    # initialize
     user = query.message.from_user
     context.user_data.clear()
+    context.user_data['section'] = None    # main menu section
     # init SQL connector
     connector = BotConnector(dbname=config['DATABASE']['name'],
                              username=config['DATABASE']['user'],
@@ -47,154 +51,171 @@ def start(query, context, backward=None):
     context.user_data['connector'] = connector
     connector.set_user(user['id'], username=user['username'], first_name=user['first_name'], last_name=user['last_name'])
     admin_status = connector.get_user_admin(user['id'])
-    print(f'admin status: {admin_status}')
-
-    # build menu
+    # build main menu
     main_menu = build_menu([
         [TGMenu.ANNOUNCE, TGMenu.PERSONAL],
-        [TGMenu.ADMIN_INFO, TGMenu.DEBUG] if admin_status else [],
+        [TGMenu.SERVICE] if admin_status else [],
+        [TGMenu.DEBUG] if admin_status else [],     # NOTE DEBUG FEATURE
         [TGMenu.GOODBYE]
     ], resize_keyboard=True)
 
     # query.message.reply_text(backward if backward else TGText.WELCOME.replace('$name', user['first_name']), reply_markup=main_menu)   # personalized welcome message
-    query.message.reply_text(backward if backward else TGText.WELCOME, reply_markup=main_menu, parse_mode=ParseMode.MARKDOWN)   # welcome message
+    query.message.reply_text(custom_text if custom_text else TGText.WELCOME, reply_markup=main_menu, parse_mode=ParseMode.MARKDOWN)   # welcome message
     return ConversationState.MAIN_MENU
 
-def handle_main_menu(query, context, use_backward=False):
-    """ Show global or personal announces """
-    user = query.message.from_user
-    text = backward if use_backward and (backward := context.user_data.get('backward')) else query.message.text
-    admin_status = context.user_data['connector'].get_user_admin(user['id'])
-    
-    # define UI parameters
-    if text == TGMenu.ANNOUNCE:
-        EVENT_TEXT = TGText.EVENTS
-        NO_EVENTS_TEXT = TGText.NO_EVENTS
-    elif text == TGMenu.PERSONAL:
-        EVENT_TEXT = TGText.MY_EVENTS
-        NO_EVENTS_TEXT = TGText.NO_MY_EVENTS
-    elif (text == TGMenu.ADMIN_INFO) and admin_status:
-        print('ADMIN COMMAND')
-        EVENT_TEXT = f'{TGText.ADMIN_EVENTS}'
-        NO_EVENTS_TEXT = TGText.NO_EVENTS
-    elif text == TGMenu.GOODBYE:
-        print('END CONVERSATION: GOODBYE')
-        start_menu = build_menu([[TGText.HELLO]], resize_keyboard=True)
-        query.message.reply_text(TGText.END, reply_markup=start_menu)
-        return ConversationHandler.END
-    elif text == TGMenu.DEBUG:
-        print('DEBUG ACTION')
-        debugger(query, context, backward=text)
-        return ConversationState.MAIN_MENU
-    else:   # any other message
-        print('END CONVERSATION: ERROR')
+
+def handle_main_menu(query, context):
+    """ Handle main menu choice and prepare context for the next step """
+    # initialize
+    step = query.message.text
+    # route conversation
+    if step in (TGMenu.ANNOUNCE, TGMenu.PERSONAL, TGMenu.SERVICE):
+        pass
+    elif step == TGMenu.GOODBYE:
+        return show_start_menu(query, context)
+    elif step == TGMenu.DEBUG:
         # TODO logger code
-        return start(query, context)
+        return debugger(query, context)
+    else:   # any other message
+        # TODO logger code
+        return show_main_menu(query, context)
+    # prepare and show next menu
+    context.user_data['section'] = step      # remember menu section
+    return show_choice_event_menu(query, context)
+
+
+def show_choice_event_menu(query, context, direct=None):
+    """ Build and show events list menu """
+    # initialize
+    user = query.message.from_user
+    step = direct if direct else query.message.text
+    admin_status = context.user_data['connector'].get_user_admin(user['id'])
+
+    if step == TGMenu.ANNOUNCE:
+        context.user_data['events_text'] = TGText.PUBLIC_EVENTS
+        context.user_data['no_events_text'] = TGText.ZERO_PUBLIC_EVENTS
+    elif step == TGMenu.PERSONAL:
+        context.user_data['events_text'] = TGText.PERSONAL_EVENTS
+        context.user_data['no_events_text'] = TGText.ZERO_PERSONAL_EVENTS
+    elif (step == TGMenu.SERVICE) and admin_status:
+        context.user_data['events_text'] = f'{TGMenu.SERVICE}: {TGText.ADMIN_EVENTS.lower()}'
+        context.user_data['no_events_text'] = TGText.ZERO_ADMIN_EVENTS
 
     # request events and check its length
-    events = context.user_data['connector'].get_events(text, uid=user['id'])
+    events = context.user_data['connector'].get_events(step, uid=user['id'])
     if not len(events):        # back to parent menu
         # TODO logger code
-        print('NO EVENTS FOUND')
-        return start(query, context, backward=NO_EVENTS_TEXT)
-    
-    # when all checks passed - save backward
-    context.user_data['backward'] = text
+        return show_main_menu(query, context, custom_text=context.user_data['no_events_text'])
 
     # collect events for context TODO: display free places on keyboard
-    ev_names = [f'{ev.formatted_title(multirow=True)}' for ev in events]     # collect button names    NOTE: NAMES COLLISION !!!
+    ev_names = [ev.formatted_title(multirow=True) for ev in events]     # collect button names    BUG NOTE: NAMES COLLISION !!!
     context.user_data['events'] = dict(zip(ev_names, events))       # update user context
-    # build events menu and store it
+    # build events menu
     menu_items = [*list(map(lambda x: [x], ev_names)), [TGMenu.BACK]]
-    announce_menu = build_menu(menu_items, resize_keyboard=True)
-    # show message
-    query.message.reply_text(EVENT_TEXT, reply_markup=announce_menu)
+    choice_event_menu = build_menu(menu_items, resize_keyboard=True)
+    # route conversation to the next step: show event choosing menu
+    query.message.reply_text(context.user_data['events_text'], reply_markup=choice_event_menu)
     return ConversationState.SELECT_EVENT
 
 
-def handle_event_choice(query, context):
-    """ Show event info and choice request """
+def handle_choice_event_menu(query, context):
+    """ Handle event choice menu and prepare context for the next step """
+    # initialize
     user = query.message.from_user
-    text = query.message.text
-    backward = context.user_data.get('backward')
+    step = query.message.text
+    section = context.user_data.get('section')
     admin_status = context.user_data['connector'].get_user_admin(user['id'])
 
-    if text == TGMenu.BACK:
-        return start(query, context, backward=TGText.MENU)
-    # on events not in context or event is invalid
-    if not (event := context.user_data.get('events').get(text)):
-        # TODO logger code
-        # return start(query, context, backward=TGText.ERROR)       # drop menu        
-        query.message.reply_text(TGText.ERROR)      # backward menu
-        return handle_main_menu(query, context, use_backward=True)
-
-    # update context
-    context.user_data['selected_event'] = event
-    # analyse backward and show announce/additional info
-    # if (backward != TGMenu.ADMIN_INFO):
-    if (backward == TGMenu.ANNOUNCE):        
+    # on back button pressed
+    if step == TGMenu.BACK:
+        return show_main_menu(query, context, custom_text=TGText.BASIC_REQUEST)
+    # get selected event
+    event = context.user_data.get('events', {}).get(step)
+    # show messages in depending on menu section
+    if (section == TGMenu.ANNOUNCE):        
         if event['info']:
             query.message.reply_text(event['info'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)
         query.message.reply_text(TGText.FREE_PLACES % event.free_places, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
-    
-    # build choice event menu
-    accept_menu = build_menu([[TGText.YES, TGText.NO]], resize_keyboard=True)
-    if admin_status and (backward == TGMenu.ADMIN_INFO):
-        # request info
-        rawreport = context.user_data['connector'].get_visitors_info(event['activity_id'])
-        if rawreport:
-            context.user_data['report'] = rawreport
-        else:
-            query.message.reply_text(TGText.NO_REGISTRATIONS)      # backward menu
-            return handle_main_menu(query, context, use_backward=True)
-        EVENT_TEXT = TGText.ADMIN_REQUEST
-    elif event.isregistred(user['id']):
-        EVENT_TEXT = TGText.ALREADY_REGISTRED
-    else: 
-        EVENT_TEXT = TGText.NOT_YET_REGISTRED
-    query.message.reply_text(EVENT_TEXT, reply_markup=accept_menu)
+    # handling: prepare conversation context
+    context.user_data['selected_event'] = event
+    # route conversation
+    if admin_status and (section == TGMenu.SERVICE):
+        context.user_data['EVENTS_TEXT'] = TGText.BASIC_MENU_REQUEST
+        return show_event_service_menu(query, context)
+
+    return show_event_actions_menu(query, context)
+
+
+def show_event_service_menu(query, context, direct=None):
+    """ Build and show event service menu """
+    # initialize
+    # step = context.user_data.get('step')
+    step = direct if direct else query.message.text
+    event = context.user_data.get('events', {}).get(step)
+    # build service actions menu
+    rawreport = context.user_data['connector'].get_visitors_info(event['activity_id'])    
+    if rawreport:
+        service_menu = build_menu([[TGMenu.DOWNLOAD_REGISTRED], [TGMenu.SEND_NOTIFY], [TGMenu.BACK]], resize_keyboard=True)
+        context.user_data['report'] = rawreport
+        # query.message.reply_text(, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
+    else:
+        # if no items - move back to choosing event
+        query.message.reply_text(TGText.NO_REGISTRATIONS)
+        return show_choice_event_menu(query, context, direct=context.user_data['section'])
+    query.message.reply_text(context.user_data['EVENTS_TEXT'], reply_markup=service_menu)
     return ConversationState.SELECT_ACTION
 
 
-def handle_action_choice(query, context):
+def show_event_actions_menu(query, context):
+    """ Build and show event user action menu """
+    # NOTE there is just one action for users
+    # that's why this method is skipping `handle_choice_action_menu`
     user = query.message.from_user
-    text = query.message.text
-    backward = context.user_data.get('backward')
-    admin_status = context.user_data['connector'].get_user_admin(user['id'])
-
     if not (event := context.user_data.get('selected_event')):
-        # TODO logger code - this would never appear
-        return start(query, context, backward=TGText.ERROR)     # startup menu
-        # query.message.reply_text(TGText.ERROR)      # backward menu
-        # return handle_main_menu(query, context, use_backward=True)
+        return show_start_menu(query, context, custom_text=TGText.ERROR)
+    
+    context.user_data['question_state'] = event.isregistred(user['id'])
+    return handle_choice_action_menu(query, context, direct=TGMenu.SWITCH_REGISTER)
+    # return ConversationState.SELECT_ACTION
 
-    if text == TGMenu.ACCEPT:
-        EVENT_TITLE = event.formatted_title(multirow=False)
-        if admin_status and (backward == TGMenu.ADMIN_INFO):
-            print('DOWNLOAD FILE')
-            EVENT_TEXT = f'{TGText.DOWNLOAD} {EVENT_TITLE}'
-            filename = pathlib.Path('reports').joinpath(event.filename).as_posix()
-            save_report(filename, context.user_data['report'])
-            context.user_data.pop('report')
-            # send in chat
-            with open(filename, 'rb') as file:
-                query.message.reply_document(file)
-            # remove file from disk
-            os.remove(filename)
-        else:
-            updated = not event.isregistred(user['id'])
-            context.user_data['connector'].set_registration(user['id'], event['activity_id'], updated)
 
-            EVENT_TEXT = f'{TGText.REGISTED_ACCEPT} {EVENT_TITLE}.' if updated else f'{TGText.REGISTER_CANCEL} {EVENT_TITLE}.'        
-        query.message.reply_text(EVENT_TEXT)
+def handle_choice_action_menu(query, context, direct=None):
+    """ Handle action choice and ask for confirmation 
+    :param direct - process direct command
+    """
+    # initialize
+    step = direct if direct else query.message.text
+    section = context.user_data['section']
+    question_state = context.user_data.pop('question_state', False)
+
+    if step == TGMenu.BACK:
+        return show_choice_event_menu(query, context, direct=section)
+
+    action = actions.get(step)      # get selected action callable and its description
+    context.user_data['action'] = action
+    actions_menu = build_menu([[TGMenu.ACCEPT, TGMenu.DECLINE]], resize_keyboard=True)
+    # show action choosing menu
+    query.message.reply_text(action.positive.question if question_state else action.negative.question, reply_markup=actions_menu)
+    return ConversationState.CONFIRM_ACTION
+
+
+def handle_confirmation(query, context):
+    """ Build confirmation menu """
+    text = query.message.text
+    # admin_status = context.user_data['connector'].get_user_admin(user['id'])
+    action = context.user_data.pop('action', None)
+    # params = context.user_data.pop('action_params', {})
+
+    if (text == TGMenu.ACCEPT) and action:
+        succeed, answer_state = action.callback(query, context)
+        if not succeed:
+            return show_start_menu(query, context, custom_text=TGText.ERROR)
+        query.message.reply_text(action.positive.answer if answer_state else action.negative.answer, parse_mode=ParseMode.MARKDOWN)
     else:
-        query.message.reply_text(TGText.ACTION_CANCELED)
+        query.message.reply_text(TGText.DEFAULT_CANCELLED, parse_mode=ParseMode.MARKDOWN)
 
-    # 1-step backward: clean context
-    context.user_data.pop('selected_event', None)
-    # query.message.reply_text(TGText.ERROR)      # backward menu
-    return handle_main_menu(query, context, use_backward=True)
-    # return start(query, context)
+    return show_choice_event_menu(query, context, direct=context.user_data['section'])
+    # return show_main_menu(query, context)
 
 
 if __name__ == '__main__':
@@ -203,19 +224,24 @@ if __name__ == '__main__':
     dispatcher = updater.dispatcher
     # init handlers
     conversation_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.text, start)],
+        entry_points=[MessageHandler(Filters.text, show_main_menu)],
         states={    # conversation states dictionary
             ConversationState.MAIN_MENU: [
-                MessageHandler(Filters.text, handle_main_menu)
+                # CallbackQueryHandler(announce, pattern=TGMenu.ANNOUNCE),
+                # CallbackQueryHandler(announce, pattern=TGMenu.),
+                MessageHandler(Filters.text, handle_main_menu),
             ],
             ConversationState.SELECT_EVENT: [
-                MessageHandler(Filters.text, handle_event_choice),
+                MessageHandler(Filters.text, handle_choice_event_menu),
             ],
             ConversationState.SELECT_ACTION: [
-                MessageHandler(Filters.text, handle_action_choice),
+                MessageHandler(Filters.text, handle_choice_action_menu),
+            ],
+            ConversationState.CONFIRM_ACTION: [
+                MessageHandler(Filters.text, handle_confirmation),
             ]
         },
-        fallbacks=[MessageHandler(Filters.text, start)]
+        fallbacks=[MessageHandler(Filters.text, show_main_menu)]
     )
     dispatcher.add_handler(conversation_handler)
 
