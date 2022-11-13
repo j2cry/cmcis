@@ -46,7 +46,7 @@ def start(query, context, backward=None):
     ], resize_keyboard=True)
 
     # query.message.reply_text(backward if backward else TGText.WELCOME.replace('$name', user['first_name']), reply_markup=main_menu)   # personalized welcome message
-    query.message.reply_text(backward if backward else TGText.WELCOME, reply_markup=main_menu)   # welcome message
+    query.message.reply_text(backward if backward else TGText.WELCOME, reply_markup=main_menu, parse_mode=ParseMode.MARKDOWN)   # welcome message
     return ConversationState.MAIN_MENU
 
 def information(query, context, use_backward=False):

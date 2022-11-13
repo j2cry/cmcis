@@ -4,6 +4,9 @@ from telegram import ReplyKeyboardMarkup
 from string import punctuation
 
 
+LINK = 'https://t.me/land_of_untold_stories'
+
+
 def build_menu(schema: List[List], **kwargs):
     """ Create telegram chat menu from list of lists with button names """
     return ReplyKeyboardMarkup(schema, **kwargs)
@@ -62,7 +65,7 @@ class TGText:
     END = 'До встречи!'
     EVENTS = 'Вот доступные сеансы, на которые вы еще не зарегистрированы. Сеансы, на которые вы уже зарегистрированы, можно найти в разделе "Мои записи"'
     MY_EVENTS = 'Вот сеансы, на которые вы записаны'
-    NO_EVENTS = 'Нет анонсированных сеансов'
+    NO_EVENTS = f'На данный момент новых мероприятий не анонсировано. Подписывайтесь и следите за новостями в [основном канале]({LINK}).'
     NO_MY_EVENTS = 'У вас еще нет записей на сеансы'
     BACK = 'Назад'
     FREE_PLACES = 'На этот сеанс осталось %s мест'
