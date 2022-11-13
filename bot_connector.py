@@ -70,7 +70,7 @@ class BotConnector():
             SELECT a.activity_id, title, place, max_visitors, showtime, info, r.visitors 
             FROM {self.schema}.activity a 
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
-            WHERE (NOW() < showtime)'''
+            WHERE (NOW() < showtime)'''     # TODO 1 week for service download
         
         if mode == TGMenu.ANNOUNCE:
             add_condition = ''' 

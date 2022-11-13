@@ -23,6 +23,17 @@ config = configparser.ConfigParser()
 config.read(CONFIG_FILE.as_posix())
 
 
+def debugger(query, context, backward=None):
+    """ For manual testing new features or development """
+    query.message.reply_text('DEBUG ACTION')
+    print(context)
+    print(type(context))
+    print(type(query))
+
+    # context.bot.send_message(1474200050, 'this message was sent via user id')   # ferra
+    # context.bot.send_message(1078182637, 'this message was sent via user id')
+
+
 def start(query, context, backward=None):
     """ Init conversation """
     user = query.message.from_user
@@ -41,7 +52,7 @@ def start(query, context, backward=None):
     # build menu
     main_menu = build_menu([
         [TGMenu.ANNOUNCE, TGMenu.PERSONAL],
-        [TGMenu.ADMIN_INFO] if admin_status else [],
+        [TGMenu.ADMIN_INFO, TGMenu.DEBUG] if admin_status else [],
         [TGMenu.GOODBYE]
     ], resize_keyboard=True)
 
@@ -49,7 +60,7 @@ def start(query, context, backward=None):
     query.message.reply_text(backward if backward else TGText.WELCOME, reply_markup=main_menu, parse_mode=ParseMode.MARKDOWN)   # welcome message
     return ConversationState.MAIN_MENU
 
-def information(query, context, use_backward=False):
+def handle_main_menu(query, context, use_backward=False):
     """ Show global or personal announces """
     user = query.message.from_user
     text = backward if use_backward and (backward := context.user_data.get('backward')) else query.message.text
@@ -71,6 +82,10 @@ def information(query, context, use_backward=False):
         start_menu = build_menu([[TGText.HELLO]], resize_keyboard=True)
         query.message.reply_text(TGText.END, reply_markup=start_menu)
         return ConversationHandler.END
+    elif text == TGMenu.DEBUG:
+        print('DEBUG ACTION')
+        debugger(query, context, backward=text)
+        return ConversationState.MAIN_MENU
     else:   # any other message
         print('END CONVERSATION: ERROR')
         # TODO logger code
@@ -86,8 +101,8 @@ def information(query, context, use_backward=False):
     # when all checks passed - save backward
     context.user_data['backward'] = text
 
-    # collect events for context
-    ev_names = [f'{ev.formatted_title(multirow=True)}' for ev in events]     # collect button names    NOTE: NAMES COLLISION !!! TODO: display free places on keyboard
+    # collect events for context TODO: display free places on keyboard
+    ev_names = [f'{ev.formatted_title(multirow=True)}' for ev in events]     # collect button names    NOTE: NAMES COLLISION !!!
     context.user_data['events'] = dict(zip(ev_names, events))       # update user context
     # build events menu and store it
     menu_items = [*list(map(lambda x: [x], ev_names)), [TGMenu.BACK]]
@@ -97,8 +112,8 @@ def information(query, context, use_backward=False):
     return ConversationState.SELECT_EVENT
 
 
-def registration(query, context):
-    """ Show event info and registration request """
+def handle_event_choice(query, context):
+    """ Show event info and choice request """
     user = query.message.from_user
     text = query.message.text
     backward = context.user_data.get('backward')
@@ -111,19 +126,18 @@ def registration(query, context):
         # TODO logger code
         # return start(query, context, backward=TGText.ERROR)       # drop menu        
         query.message.reply_text(TGText.ERROR)      # backward menu
-        return information(query, context, use_backward=True)
+        return handle_main_menu(query, context, use_backward=True)
 
     # update context
     context.user_data['selected_event'] = event
-    # show event description
-    # query.message.reply_text(f'{event.formatted_title(multirow=False)} {TGText.FREE_PLACES % event.free_places}',
-    #                          reply_markup=None, parse_mode=ParseMode.MARKDOWN)
-
-    # analyse backward and show
-    if (backward != TGMenu.ADMIN_INFO):
+    # analyse backward and show announce/additional info
+    # if (backward != TGMenu.ADMIN_INFO):
+    if (backward == TGMenu.ANNOUNCE):        
+        if event['info']:
+            query.message.reply_text(event['info'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)
         query.message.reply_text(TGText.FREE_PLACES % event.free_places, reply_markup=None, parse_mode=ParseMode.MARKDOWN)
     
-    # build registration menu
+    # build choice event menu
     accept_menu = build_menu([[TGText.YES, TGText.NO]], resize_keyboard=True)
     if admin_status and (backward == TGMenu.ADMIN_INFO):
         # request info
@@ -132,17 +146,17 @@ def registration(query, context):
             context.user_data['report'] = rawreport
         else:
             query.message.reply_text(TGText.NO_REGISTRATIONS)      # backward menu
-            return information(query, context, use_backward=True)
+            return handle_main_menu(query, context, use_backward=True)
         EVENT_TEXT = TGText.ADMIN_REQUEST
     elif event.isregistred(user['id']):
         EVENT_TEXT = TGText.ALREADY_REGISTRED
     else: 
         EVENT_TEXT = TGText.NOT_YET_REGISTRED
     query.message.reply_text(EVENT_TEXT, reply_markup=accept_menu)
-    return ConversationState.REGISTRATION
+    return ConversationState.SELECT_ACTION
 
 
-def update_register(query, context):
+def handle_action_choice(query, context):
     user = query.message.from_user
     text = query.message.text
     backward = context.user_data.get('backward')
@@ -152,7 +166,7 @@ def update_register(query, context):
         # TODO logger code - this would never appear
         return start(query, context, backward=TGText.ERROR)     # startup menu
         # query.message.reply_text(TGText.ERROR)      # backward menu
-        # return information(query, context, use_backward=True)
+        # return handle_main_menu(query, context, use_backward=True)
 
     if text == TGMenu.ACCEPT:
         EVENT_TITLE = event.formatted_title(multirow=False)
@@ -179,7 +193,7 @@ def update_register(query, context):
     # 1-step backward: clean context
     context.user_data.pop('selected_event', None)
     # query.message.reply_text(TGText.ERROR)      # backward menu
-    return information(query, context, use_backward=True)
+    return handle_main_menu(query, context, use_backward=True)
     # return start(query, context)
 
 
@@ -192,13 +206,13 @@ if __name__ == '__main__':
         entry_points=[MessageHandler(Filters.text, start)],
         states={    # conversation states dictionary
             ConversationState.MAIN_MENU: [
-                MessageHandler(Filters.text, information)
+                MessageHandler(Filters.text, handle_main_menu)
             ],
             ConversationState.SELECT_EVENT: [
-                MessageHandler(Filters.text, registration),
+                MessageHandler(Filters.text, handle_event_choice),
             ],
-            ConversationState.REGISTRATION: [
-                MessageHandler(Filters.text, update_register),
+            ConversationState.SELECT_ACTION: [
+                MessageHandler(Filters.text, handle_action_choice),
             ]
         },
         fallbacks=[MessageHandler(Filters.text, start)]

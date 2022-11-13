@@ -45,7 +45,8 @@ class ShowEvent(dict):
 class ConversationState:
     MAIN_MENU = 1
     SELECT_EVENT = 2
-    REGISTRATION = 3
+    SELECT_ACTION = 3
+
 
 class TGMenu:
     WELCOME = 'Привет'
@@ -56,6 +57,7 @@ class TGMenu:
     ACCEPT = 'Да'
     DECLINE = 'Нет'
     ADMIN_INFO = 'Служебная информация'
+    DEBUG = 'debug'
 
 
 class TGText:
