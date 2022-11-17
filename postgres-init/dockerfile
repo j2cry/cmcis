@@ -1,0 +1,7 @@
+FROM alpine:3.17
+LABEL maintainer="fragarie"
+LABEL description="Container with gettext package for using envsubst in SQL initialization"
+
+RUN apk add gettext
+
+CMD ["sh"]

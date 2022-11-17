@@ -35,7 +35,7 @@ docker-compose up -d
 
 ## Structure
 ### Files & folders
-`custom-postgres` - PostgreSQL docker container with gettext package installed<br>
+`postgres-init` - container with gettext package installed for `init.sql` compiling<br>
 `pgdata` - default folder for SQL data<br>
 `reports` - service folder for sending files<br>
 `sql` - database initialization scripts: here must be a script which initializes required schema and structure<br>

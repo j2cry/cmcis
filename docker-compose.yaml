@@ -14,8 +14,8 @@ x-cmcis-common:
 services:
   pginit:
     <<: *cmcis-common
-    build: custom-postgres
-    entrypoint: /bin/bash
+    build: postgres-init    # TODO: заменить на обычный linux? в нем же не нужна SQL база
+    entrypoint: sh
     command:
       - -c
       - |
@@ -31,7 +31,7 @@ services:
     container_name: ${DBHOST}
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
-      # - ./pgdata:/var/lib/postgresql/data     # uncomment this before deploy
+      - ./pgdata:/var/lib/postgresql/data
     ports:
       - 5432:5432        
     healthcheck:
