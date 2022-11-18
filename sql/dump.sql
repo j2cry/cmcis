@@ -41,6 +41,7 @@ CREATE TABLE harpy.activity (
     showtime timestamp without time zone,
     openreg character varying(30),
     info text,
+    active boolean,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -198,6 +199,7 @@ COMMENT ON COLUMN harpy.client.is_admin IS 'Bot administrator status';
 
 CREATE TABLE harpy.place (
     place_id integer NOT NULL,
+    addr character varying(200),
     info text,
     created timestamp without time zone DEFAULT now() NOT NULL
 );

@@ -5,12 +5,29 @@ from typing import List
 from telegram import ReplyKeyboardMarkup, ParseMode
 from string import punctuation
 from dictionary import TGMenu, TGText
-from collections import namedtuple
+from functools import wraps
 
 
-def build_menu(schema: List[List], **kwargs):
-    """ Create telegram chat menu from list of lists with button names """
+def build_keyboard(schema: List[List], **kwargs):
+    """ Create telegram chat menu as keyboard from list of lists with button names """
     return ReplyKeyboardMarkup(schema, **kwargs)
+
+
+def manage_menu(level):
+    """ Decorator for managing menu tree """
+    def __menu_manager(func):
+        @wraps(func)
+        def __wrapper(query, context, **kwargs):
+            menu = context.user_data.get('menu_tree', [])
+            if not level:
+                menu.clear()
+            elif len(menu) < level:
+                menu.append(query.message.text)
+            else:
+                menu = menu[:level]
+            return func(query, context, **kwargs)
+        return __wrapper
+    return __menu_manager
 
 
 def save_report(filename, raw, sep=';', encoding='utf-8'):
@@ -45,8 +62,9 @@ class ShowEvent(dict):
 class ConversationState:
     MAIN_MENU = 1
     SELECT_EVENT = 2
-    SELECT_ACTION = 3
-    CONFIRM_ACTION = 4
+    SELECT_EVENT_SERVICE = 3
+    SELECT_ACTION = 4
+    CONFIRM_ACTION = 5
 
 
 class AcceptedQAPair:
