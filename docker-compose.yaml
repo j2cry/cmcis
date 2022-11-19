@@ -1,34 +1,29 @@
 # Environment variables must be declared in .env file
 version: '3'
-x-cmcis-common:
-  &cmcis-common
-  environment:
-    &cmcis-common-env
-    POSTGRES_DB: ${DBNAME}
-    POSTGRES_USER: ${PSQL_MASTER_USER}
-    POSTGRES_PASSWORD: ${PSQL_MASTER_PASSWORD}
-    PGDATA: /var/lib/postgresql/data
-  volumes:
-    - ./sql:/docker-entrypoint-initdb.d
 
 services:
   pginit:
-    <<: *cmcis-common
-    build: postgres-init    # TODO: заменить на обычный linux? в нем же не нужна SQL база
-    entrypoint: sh
-    command:
-      - -c
-      - |
-        export DBNAME=${DBNAME} SCHEMA=${SCHEMA}
-        export PSQL_HANDLER_USER=${PSQL_HANDLER_USER} PSQL_HANDLER_PASSWORD=${PSQL_HANDLER_PASSWORD}
-        export PSQL_USER=${PSQL_USER} PSQL_PASSWORD=${PSQL_PASSWORD}
-        envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql
-        unset DBNAME SCHEMA PSQL_HANDLER_USER PSQL_HANDLER_PASSWORD PSQL_USER PSQL_PASSWORD
+    build: postgres-init
+    container_name: postgres-init
+    environment:
+      DBNAME: ${DBNAME}
+      SCHEMA: ${SCHEMA}
+      PSQL_HANDLER_USER: ${PSQL_HANDLER_USER}
+      PSQL_HANDLER_PASSWORD: ${PSQL_HANDLER_PASSWORD}
+      PSQL_USER: ${PSQL_USER}
+      PSQL_PASSWORD: ${PSQL_PASSWORD}
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+    command: sh -c "envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql"
 
   cmcis-postgres:
-    <<: *cmcis-common
     image: postgres:15
     container_name: ${DBHOST}
+    environment:
+      POSTGRES_DB: ${DBNAME}
+      POSTGRES_USER: ${PSQL_MASTER_USER}
+      POSTGRES_PASSWORD: ${PSQL_MASTER_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
       - ./pgdata:/var/lib/postgresql/data
@@ -50,8 +45,10 @@ services:
       - |
         export DBHOST=${DBHOST} DBPORT=${DBPORT} DBNAME=${DBNAME} SCHEMA=${SCHEMA} TGTOKEN=${TGTOKEN} PSQL_USER=${PSQL_USER}
         envsubst < template.cnf > my.cnf
-        unset DBHOST DBPORT DBNAME SCHEMA TGTOKEN PSQL_USER
         /home/bot/venv/bin/python3 keystore.py -s telegram -u botuser -p $TGTOKEN
         /home/bot/venv/bin/python3 keystore.py -s $DBNAME -u $PSQL_USER -p $PSQL_PASSWORD
         /home/bot/venv/bin/python3 bot.py
+        unset DBHOST DBPORT DBNAME SCHEMA TGTOKEN PSQL_USER
+    depends_on:
+      - cmcis-postgres
     restart: unless-stopped

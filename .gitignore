@@ -2,6 +2,7 @@
 /archieve/
 /pgdata/
 /sql/init.sql
+/sql/data.sqldump
 **/venv/**
 .env
 draft.ipynb
