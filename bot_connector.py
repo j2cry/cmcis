@@ -6,7 +6,7 @@ from aux import ShowEvent
 from dictionary import TGMenu
 
 
-OPEN_REG_INTERVAL = '1 month'        # TODO in SQL column
+SERVICE_INTERVAL = '7 day'
 
 
 class BotConnector():
@@ -62,33 +62,34 @@ class BotConnector():
     @manage_connection
     def get_events(self, mode, **kwargs):
         """ Get required events """
-        BASIC_QUERY = f'''
+        if mode == TGMenu.ANNOUNCE:
+            condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime)
+                AND (r.visitors is NULL OR 
+                    ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
+            parameters = (kwargs.get('uid'), )
+        elif mode == TGMenu.PERSONAL:
+            condition = 'a.active AND (NOW() < a.showtime) AND %s = ANY(r.visitors)'
+            parameters = (kwargs.get('uid'), )
+        elif mode == TGMenu.SERVICE:
+            condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
+            parameters = (SERVICE_INTERVAL, )
+        else:
+            return []
+
+        QUERY = f'''
             WITH reg AS
                 (SELECT activity_id, ARRAY_AGG(client_id) visitors 
                 FROM {self.schema}.booking 
                 WHERE actual
                 GROUP BY activity_id) 
-            SELECT a.activity_id, title, place, max_visitors, showtime, info, r.visitors 
+            SELECT a.activity_id, a.title, a.place, a.max_visitors, a.showtime, a.info, r.visitors 
             FROM {self.schema}.activity a 
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
-            WHERE (NOW() < showtime)'''     # TODO 1 week for service download
-        
-        if mode == TGMenu.ANNOUNCE:
-            add_condition = ''' 
-                AND (showtime < (NOW() + INTERVAL %s)) 
-                AND (r.visitors is NULL OR 
-                    ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
-            parameters = (OPEN_REG_INTERVAL, kwargs.get('uid'))
-        elif mode == TGMenu.PERSONAL:
-            add_condition = ' AND %s = ANY(r.visitors)'
-            parameters = (kwargs.get('uid'), )
-        elif mode == TGMenu.SERVICE:
-            add_condition = ''
-            parameters = None
-        else:
-            return []
+            WHERE {condition}
+            ORDER BY a.showtime
+            '''
 
-        self.__cursor.execute(BASIC_QUERY + add_condition, parameters)
+        self.__cursor.execute(QUERY, parameters)
         result = [ShowEvent(ev) for ev in self.__cursor.fetchall()]
         return result
 

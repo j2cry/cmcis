@@ -39,9 +39,9 @@ CREATE TABLE harpy.activity (
     place integer NOT NULL,
     max_visitors smallint,
     showtime timestamp without time zone,
-    openreg character varying(30),
+    openreg timestamp without time zone,
     info text,
-    active boolean,
+    active boolean DEFAULT true,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -88,6 +88,13 @@ COMMENT ON COLUMN harpy.activity.openreg IS 'Start registration date & time';
 --
 
 COMMENT ON COLUMN harpy.activity.info IS 'Addtitional information';
+
+
+--
+-- Name: COLUMN activity.active; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.active IS 'Activity status';
 
 
 --

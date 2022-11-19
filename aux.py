@@ -6,6 +6,7 @@ from telegram import ReplyKeyboardMarkup, ParseMode
 from string import punctuation
 from dictionary import TGMenu, TGText
 from functools import wraps
+from datetime import datetime
 
 
 def build_keyboard(schema: List[List], **kwargs):
@@ -57,6 +58,10 @@ class ShowEvent(dict):
     @property
     def filename(self):
         return re.sub(rf'[{punctuation}]|\s', '_', self.formatted_title()) + '.csv'
+    
+    @property
+    def past(self):
+        return self['showtime'] < datetime.now()
 
 
 class ConversationState:

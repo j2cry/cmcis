@@ -44,3 +44,8 @@ docker-compose up -d
 
 ### Database
 <img src="sql/cmcis-erd.png" alt="Look for ERD if `sql` folder">
+
+Key poiints
+* activities are not displayed at all if the value of `showtime` or `openreg` is NULL
+* activities are not displayed at all if the value of `active` is NULL or FALSE
+* activities are displayed in the service menu for 7 days after the showtime; this behavior is hardcoded

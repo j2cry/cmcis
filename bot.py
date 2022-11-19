@@ -117,7 +117,7 @@ def show_event_service_menu(query, context):
     if rawreport:
         service_menu = build_keyboard([
             [TGMenu.DOWNLOAD_REGISTRED], 
-            [TGMenu.SEND_NOTIFY],       # TODO remove this if event is in past
+            [TGMenu.SEND_NOTIFY] if not event.past else [],
             [TGMenu.BACK]], 
             resize_keyboard=True)
         context.user_data['report'] = rawreport
@@ -169,7 +169,7 @@ def handle_select_action_menu(query, context, direct=None):     # NOTE `direct` 
 
 
 def handle_confirmation(query, context):
-    """ Build confirmation menu """
+    """ Handle confirmation answer """
     text = query.message.text
     # admin_status = context.user_data['connector'].get_user_admin(user['id'])
     action = context.user_data.pop('action', None)
