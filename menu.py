@@ -74,8 +74,13 @@ class MenuHandler:
                 {self.text['BUTTON', 'GOODBYE']: f'action::{ButtonCallbackData.GOODBYE}'},
             ])
 
-            push_message = query.message.edit_text if (cbtarget.button == ButtonCallbackData.TO_MAIN_MENU) else query.message.reply_text
-            context.user_data['last_message'] = push_message(self.text['MESSAGE', 'WELCOME', state] % context.user_data['specname'], reply_markup=kbd)
+            # TODO если приход из BACK, то другой conversation state: Вы находитесь в главном меню...
+            if (cbtarget.button == ButtonCallbackData.TO_MAIN_MENU):
+                query.message.edit_text(self.text['MESSAGE', 'WELCOME', 2], reply_markup=kbd)
+            else:
+                context.user_data['last_message'] = query.message.reply_text(self.text['MESSAGE', 'WELCOME', state] % context.user_data['specname'], reply_markup=kbd)
+            # push_message = query.message.edit_text if (cbtarget.button == ButtonCallbackData.TO_MAIN_MENU) else query.message.reply_text
+            # context.user_data['last_message'] = push_message(self.text['MESSAGE', 'WELCOME', state] % context.user_data['specname'], reply_markup=kbd)
         
         elif cbtarget.menu == MenuCallbackData.INFO:
             # TODO DB request depending on pressed button
