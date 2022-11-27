@@ -33,6 +33,16 @@ docker-compose up pginit
 docker-compose up -d
 ```
 
+## Settings
+The settings are available in a file `my.cnf` that is mostly generated automatically.
+Here are described some predefined parameters, that you can change manually
+```bash
+[BOT]
+timeout=300     # conversation session timeout (in seconds)
+```
+
+
+
 ## Structure
 ### Files & folders
 `postgres-init` - container with gettext package installed for `init.sql` compiling<br>

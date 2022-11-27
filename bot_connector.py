@@ -1,12 +1,39 @@
+import re
 import keyring
 import psycopg2
 from psycopg2.extras import DictCursor
 from functools import wraps
-from aux import ShowEvent
-from dictionary import TGMenu
+from menu import ButtonCallbackData
+from string import punctuation
+from datetime import datetime
 
 
 SERVICE_INTERVAL = '7 day'
+
+
+class ShowEvent(dict):
+    """ Event object """
+    @property
+    def free_places(self):
+        if self['visitors']:
+            return self['max_visitors'] - len(self['visitors'])
+        else:
+            return self['max_visitors']
+
+    def isregistred(self, uid):
+        val = uid in self['visitors'] if self['visitors'] else False
+        return val
+    
+    def formatted_title(self, multirow=False):
+        return self['showtime'].strftime('%d/%m/%Y, %H:%M') + ('\n' if multirow else ' ') + self['title']
+
+    @property
+    def filename(self):
+        return re.sub(rf'[{punctuation}]|\s', '_', self.formatted_title()) + '.csv'
+    
+    @property
+    def past(self):
+        return self['showtime'] < datetime.now()
 
 
 class BotConnector():
@@ -38,7 +65,7 @@ class BotConnector():
     @manage_connection
     def set_user(self, client_id, **kwargs):
         """ Add or update user, return admin status """
-        POSSIBLE_FIELDS = ('username', 'first_name', 'last_name', 'is_admin')
+        POSSIBLE_FIELDS = ('specname', 'username', 'first_name', 'last_name', 'is_admin')
         fields = [f for f in kwargs.keys() if f in POSSIBLE_FIELDS]
         fieldholder = (', ' + ', '.join(fields)) if len(fields) else ''
         paramholder = (', ' + ', '.join(['%s'] * len(fields))) if len(fields) else ''
@@ -50,27 +77,28 @@ class BotConnector():
             INSERT INTO {self.schema}.client (client_id{fieldholder})
             VALUES (%s{paramholder})
             ON CONFLICT (client_id) DO {on_conflict}'''
-        self.__cursor.execute(BASIC_QUERY, (client_id, *kwargs.values()))
+        self.__cursor.execute(BASIC_QUERY, (client_id, *[v for k, v in kwargs.items() if k in fields]))
     
     @manage_connection
-    def get_user_admin(self, client_id):
-        """ Get user info """
-        self.__cursor.execute(f'SELECT is_admin FROM {self.schema}.client WHERE client_id = %s', (client_id, ))
+    def get_user_field(self, client_id, *, field, default=None):
+        """ Get user info field or default if not exists """
+        self.__cursor.execute(f'SELECT {field} FROM {self.schema}.client WHERE client_id = %s', (client_id, ))
         user_info = self.__cursor.fetchall()
-        return user_info[0]['is_admin'] if user_info else False
+        return user_info[0].get(field, default) if user_info else {}
 
     @manage_connection
     def get_events(self, mode, **kwargs):
         """ Get required events """
-        if mode == TGMenu.ANNOUNCE:
+        # TODO объединить EVENTS и BOOKING - для них набор ивентов будет одинаковый - отличия в менюшках
+        if mode == ButtonCallbackData.EVENTS:
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime)
                 AND (r.visitors is NULL OR 
                     ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
             parameters = (kwargs.get('uid'), )
-        elif mode == TGMenu.PERSONAL:
+        elif mode == ButtonCallbackData.BOOKING:
             condition = 'a.active AND (NOW() < a.showtime) AND %s = ANY(r.visitors)'
             parameters = (kwargs.get('uid'), )
-        elif mode == TGMenu.SERVICE:
+        elif mode == ButtonCallbackData.SERVICE:
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
             parameters = (SERVICE_INTERVAL, )
         else:

@@ -176,6 +176,7 @@ COMMENT ON COLUMN harpy.booking.num_changes IS 'Number of changes';
 
 CREATE TABLE harpy.client (
     client_id bigint NOT NULL,
+    specname character varying(100),
     username character varying(100),
     first_name character varying(100),
     last_name character varying(100),
