@@ -70,8 +70,8 @@ class MenuHandler:
         button = cbstate.button if cbstate.button != ButtonCallbackData.BACK else context.user_data['evfilter']
         context.user_data['evfilter'] = button
         # request actual events depending on pressed button
-        events = connector.get_events(button, uid=uid)            # TODO доработать запрос БД
-        booked = [ev for ev in events if ev['booked']]
+        events = connector.get_events(button, uid=uid)
+        booked = [ev for ev in events if ev['is_booked']]
         # build zero-events keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'TO_RELATED_CHANNEL']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'},     # TODO link to channel
@@ -93,16 +93,17 @@ class MenuHandler:
             kbd = build_inline([
                 {
                     self.text['BUTTON', 'MORE']: f'{MenuCallbackData.EVCARD}:{ButtonCallbackData.MORE}:{ev["activity_id"]}',
-                    self.text['BUTTON', 'BOOK', bool(ev['booked'])]: f'{MenuCallbackData.EVBOOK}:{ButtonCallbackData.BOOK}:{ev["activity_id"]}'
+                    self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{MenuCallbackData.EVBOOK}:{ButtonCallbackData.BOOK}:{ev["activity_id"]}'
                 },
                 {self.text['BUTTON', 'TO_MAIN_MENU']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'} if num == len(events) else {},
             ])
             # TODO настроить отображение карточки анонса
             infocard = f"*{ev['activity_title']}*\n" \
                         f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
-                        f"{(ev['announce']) if ev['announce'] else ''}" \
+                        f"{(ev['announce']) if ev['announce'] else ''}\n" \
+                        f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}\n" \
                         f""
-                        # TODO текст по state
+                        # TODO текст по state: про места, очередь, бронирование итп
             evlist.append(query.message.reply_text(infocard, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
         context.user_data['last_messages'] = evlist
         return ConversationState.BODY
@@ -120,12 +121,11 @@ class MenuHandler:
         infocard = f"*{ev['activity_title']}*\n" \
                     f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                     f"{ev['addr']}\n" \
-                    f"{ev['info']}" \
-                    f""
-                    # TODO количество мест
+                    f"{ev['info']}\n" \
+                    f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}"
         # prepare keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'BOOK', bool(ev['booked'])]: f'{MenuCallbackData.EVBOOK}:{ButtonCallbackData.BOOK}:{ev["activity_id"]}'},
+            {self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{MenuCallbackData.EVBOOK}:{ButtonCallbackData.BOOK}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'SHOWMAP']: f'{MenuCallbackData.EVMAP}:{ButtonCallbackData.SHOWMAP}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'BACK']: f'{MenuCallbackData.EVLIST}:{ButtonCallbackData.BACK}'},
             {self.text['BUTTON', 'TO_MAIN_MENU']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'}

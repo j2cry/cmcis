@@ -134,7 +134,7 @@ ALTER SEQUENCE harpy.activity_activity_id_seq OWNED BY harpy.activity.activity_i
 CREATE TABLE harpy.booking (
     client_id bigint NOT NULL,
     activity_id integer NOT NULL,
-    actual boolean NOT NULL,
+    quantity smallint DEFAULT 0,
     modified timestamp without time zone DEFAULT now() NOT NULL,
     num_changes smallint DEFAULT 0,
     created timestamp without time zone DEFAULT now() NOT NULL
@@ -158,10 +158,10 @@ COMMENT ON COLUMN harpy.booking.activity_id IS 'Activity identifier';
 
 
 --
--- Name: COLUMN booking.actual; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+-- Name: COLUMN booking.quantity; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.booking.actual IS 'Booking actuality';
+COMMENT ON COLUMN harpy.booking.quantity IS 'Amount of booked tickets';
 
 
 --

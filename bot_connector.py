@@ -111,8 +111,7 @@ class BotConnector():
             parameters = (SERVICE_INTERVAL, )
         
         elif mode in (ButtonCallbackData.EVENTS, ButtonCallbackData.BOOKING):
-            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) booked ''' 
-                    # TODO запрашивать количество забронированных билетов
+            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked ''' 
                     # TODO также проверять очередь бронирования
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL '1' hour)'''
             parameters = (kwargs.get('uid'), )
@@ -131,9 +130,12 @@ class BotConnector():
 
         QUERY = f'''
             WITH reg AS
-                (SELECT activity_id, ARRAY_AGG(client_id) visitors 
+                (SELECT
+                    activity_id,
+                    ARRAY_AGG(client_id) visitors,
+                    COALESCE(SUM(quantity), 0) booked
                 FROM {self.schema}.booking 
-                WHERE actual
+                WHERE quantity > 0
                 GROUP BY activity_id) 
             SELECT
                 a.activity_id,
@@ -143,7 +145,7 @@ class BotConnector():
                 a.showtime,
                 p.title place_title,
                 p.addr,
-                a.max_visitors
+                a.max_visitors - COALESCE(r.booked, 0) left_places
                 {fields}
             FROM {self.schema}.activity a 
             JOIN {self.schema}.place p ON p.place_id = a.place
@@ -160,10 +162,10 @@ class BotConnector():
     def set_registration(self, client_id, activity_id, value):
         """ Update user registration row """
         BASIC_QUERY = f'''
-            INSERT INTO {self.schema}.booking (client_id, activity_id, actual, modified, num_changes) 
+            INSERT INTO {self.schema}.booking (client_id, activity_id, quantity, modified, num_changes) 
             VALUES (%s, %s, %s, NOW(), 0) 
             ON CONFLICT (client_id, activity_id) DO UPDATE 
-            SET actual = EXCLUDED.actual,
+            SET quantity = EXCLUDED.quantity,
                 modified = EXCLUDED.modified,
                 num_changes = {self.schema}.booking.num_changes + 1'''
         parameters = (client_id, activity_id, value)
@@ -174,6 +176,6 @@ class BotConnector():
         BASIC_QUERY = f'''
             SELECT c.*, b.num_changes FROM {self.schema}.client c
             JOIN {self.schema}.booking b on b.client_id = c.client_id
-            WHERE (b.activity_id = %s) AND b.actual'''
+            WHERE (b.activity_id = %s) AND (b.quantity > 0)'''
         self.__cursor.execute(BASIC_QUERY, (activity_id, ))
         return [dict(item) for item in self.__cursor.fetchall()]
