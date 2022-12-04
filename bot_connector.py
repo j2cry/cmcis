@@ -89,20 +89,45 @@ class BotConnector():
     @manage_connection
     def get_events(self, mode, **kwargs):
         """ Get required events """
-        # TODO объединить EVENTS и BOOKING - для них набор ивентов будет одинаковый - отличия в менюшках
-        if mode == ButtonCallbackData.EVENTS:
-            condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime)
-                AND (r.visitors is NULL OR 
-                    ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
-            parameters = (kwargs.get('uid'), )
-        elif mode == ButtonCallbackData.BOOKING:
-            condition = 'a.active AND (NOW() < a.showtime) AND %s = ANY(r.visitors)'
-            parameters = (kwargs.get('uid'), )
-        elif mode == ButtonCallbackData.SERVICE:
+        eid = kwargs.get('eid', None)
+        # if mode == ButtonCallbackData.EVENTS:
+        #     condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime)
+        #         AND (r.visitors is NULL OR 
+        #             ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
+        #     parameters = (kwargs.get('uid'), )
+        # elif mode == ButtonCallbackData.BOOKING:
+        #     condition = 'a.active AND (NOW() < a.showtime) AND %s = ANY(r.visitors)'
+        #     parameters = (kwargs.get('uid'), )
+        # elif mode == ButtonCallbackData.SERVICE:
+        #     condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
+        #     parameters = (SERVICE_INTERVAL, )
+        # else:
+        #     return []
+        # uid = kwargs.get('uid')
+
+        if mode == ButtonCallbackData.SERVICE:
+            fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
             parameters = (SERVICE_INTERVAL, )
-        else:
-            return []
+        
+        elif mode in (ButtonCallbackData.EVENTS, ButtonCallbackData.BOOKING):
+            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) booked ''' 
+                    # TODO запрашивать количество забронированных билетов
+                    # TODO также проверять очередь бронирования
+            condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL '1' hour)'''
+            parameters = (kwargs.get('uid'), )
+            # booking filter
+            if mode == ButtonCallbackData.BOOKING:
+                condition = '''a.active AND (%s = ANY(r.visitors))'''
+                parameters = (*parameters, kwargs.get('uid'), )
+
+        # elif mode == ButtonCallbackData.BOOKING:
+        #     ...
+        
+        # select event 
+        if eid is not None:
+            condition += ' AND a.activity_id = %s'
+            parameters = (*parameters, eid)
 
         QUERY = f'''
             WITH reg AS
@@ -110,8 +135,18 @@ class BotConnector():
                 FROM {self.schema}.booking 
                 WHERE actual
                 GROUP BY activity_id) 
-            SELECT a.activity_id, a.title, a.place, a.max_visitors, a.showtime, a.info, r.visitors 
+            SELECT
+                a.activity_id,
+                a.title activity_title,
+                a.announce,
+                a.info,
+                a.showtime,
+                p.title place_title,
+                p.addr,
+                a.max_visitors
+                {fields}
             FROM {self.schema}.activity a 
+            JOIN {self.schema}.place p ON p.place_id = a.place
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
             WHERE {condition}
             ORDER BY a.showtime
@@ -119,7 +154,7 @@ class BotConnector():
 
         self.__cursor.execute(QUERY, parameters)
         result = [ShowEvent(ev) for ev in self.__cursor.fetchall()]
-        return result
+        return result[0] if (eid is not None) and result else result
 
     @manage_connection
     def set_registration(self, client_id, activity_id, value):

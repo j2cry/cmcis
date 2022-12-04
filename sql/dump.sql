@@ -40,6 +40,7 @@ CREATE TABLE harpy.activity (
     max_visitors smallint,
     showtime timestamp without time zone,
     openreg timestamp without time zone,
+    announce text,
     info text,
     active boolean DEFAULT true,
     created timestamp without time zone DEFAULT now() NOT NULL
@@ -84,10 +85,17 @@ COMMENT ON COLUMN harpy.activity.openreg IS 'Start registration date & time';
 
 
 --
+-- Name: COLUMN activity.announce; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.announce IS 'Short announce text';
+
+
+--
 -- Name: COLUMN activity.info; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.activity.info IS 'Addtitional information';
+COMMENT ON COLUMN harpy.activity.info IS 'Event description (long announce)';
 
 
 --
@@ -207,6 +215,7 @@ COMMENT ON COLUMN harpy.client.is_admin IS 'Bot administrator status';
 
 CREATE TABLE harpy.place (
     place_id integer NOT NULL,
+    title character varying(100),
     addr character varying(200),
     info text,
     created timestamp without time zone DEFAULT now() NOT NULL
@@ -220,6 +229,13 @@ ALTER TABLE harpy.place OWNER TO cmcismaster;
 --
 
 COMMENT ON COLUMN harpy.place.place_id IS 'Place identifier';
+
+
+--
+-- Name: COLUMN place.title; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.place.title IS 'Place title';
 
 
 --

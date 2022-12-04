@@ -2,15 +2,14 @@ import logging
 import pathlib
 import configparser
 import keyring
-from functools import partial, wraps
 
-from telegram import ParseMode, ReplyKeyboardRemove, ReplyKeyboardMarkup
 from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler, InlineQueryHandler
 from telegram.ext.filters import Filters
 
-from menu import MenuHandler, ErrorState
-from conversation import ConversationState, DialogMessages
+from menu import MenuHandler
+from states import ErrorState, MenuCallbackData, ConversationState, DialogMessages
 from bot_connector import BotConnector
+from functools import partial
 
 
 # TODO logging: replace print with log
@@ -50,6 +49,7 @@ def start(update, context):
     """ Initialize conversation """
     update.message.delete()
     user = update.message.from_user
+    context.user_data['uid'] = user['id']
     # init connector
     connector = BotConnector(dbname=config['DATABASE']['name'],
                              username=config['DATABASE']['user'],
@@ -63,8 +63,8 @@ def start(update, context):
         return ConversationState.FIRST_MET
     
     context.user_data['specname'] = specname
-    context.user_data['state'] = 1      # user exists state
-    return menu.show(update, context)
+    context.user_data['cvstate'] = 1      # user exists state
+    return menu.main(update, context)
 
 
 def first_met(update, context):
@@ -80,10 +80,9 @@ def first_met(update, context):
     }
     context.user_data['connector'].set_user(user['id'], **data)
     context.user_data['specname'] = specname
-    context.user_data['state'] = 0      # new user state
+    context.user_data['cvstate'] = 0      # new user state
     update.message.delete()
-    context.user_data.pop('last_message').delete()
-    return menu.show(update, context)
+    return menu.main(update, context)
 
 
 # def show_start_menu(query, context, custom_text=None):
@@ -257,24 +256,15 @@ if __name__ == '__main__':
             ],
 
             ConversationState.BODY: [
-                CallbackQueryHandler(menu.show, pattern='menu'),
+                CallbackQueryHandler(menu.main, pattern=rf'^{MenuCallbackData.MAIN}'),
+                CallbackQueryHandler(menu.available_activities, pattern=rf'^{MenuCallbackData.EVLIST}'),
+                CallbackQueryHandler(menu.activity_infocard, pattern=rf'^{MenuCallbackData.EVCARD}'),
+                CallbackQueryHandler(menu.showmap, pattern=rf'^{MenuCallbackData.EVMAP}'),
+                CallbackQueryHandler(menu.book, pattern=rf'^{MenuCallbackData.EVBOOK}'),
+                # CallbackQueryHandler(menu.show, pattern='menu'),
                 CallbackQueryHandler(menu.action, pattern='action'),
             ],
-            # ConversationState.SELECT_EVENT: [
-            #     MessageHandler(Filters.regex(TGMenu.BACK), partial(show_main_menu, custom_text=TGText.BASIC_REQUEST)),
-            #     MessageHandler(Filters.text, show_event_actions_menu),      # --> SELECT_ACTION
-            # ],
-            # ConversationState.SELECT_EVENT_SERVICE: [
-            #     MessageHandler(Filters.regex(TGMenu.BACK), partial(show_main_menu, custom_text=TGText.BASIC_REQUEST)),
-            #     MessageHandler(Filters.text, show_event_service_menu),      # --> SELECT_ACTION
-            # ],
-            # ConversationState.SELECT_ACTION: [
-            #     MessageHandler(Filters.regex(TGMenu.BACK), show_select_event_menu),
-            #     MessageHandler(Filters.text, handle_select_action_menu),        # --> CONFIRM_ACTION
-            # ],
-            # ConversationState.CONFIRM_ACTION: [
-            #     MessageHandler(Filters.text, handle_confirmation),
-            # ]
+
             ConversationHandler.TIMEOUT: [
                 MessageHandler(Filters.all, partial(menu.raise_error, state=ErrorState.TIMEOUT)),
                 CallbackQueryHandler(partial(menu.raise_error, state=ErrorState.TIMEOUT)),

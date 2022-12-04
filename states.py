@@ -1,8 +1,41 @@
-
 import pathlib
 import configparser
 import random
 from telegram.ext import ConversationHandler
+from collections import namedtuple
+
+
+class MenuCallbackData:
+    """ Menu sheets callback data prefix """
+    MAIN = 'main'
+    EVLIST = 'evlist'       # for announces/booking/service menu
+    EVCARD = 'evcard'       # event info card
+    EVBOOK = 'evbook'       # event booking page
+    EVMAP = 'evmap'         # show map and address
+
+
+class ButtonCallbackData:
+    """ Button callback data prefix """
+    EVENTS = 'events'
+    BOOKING = 'booking'
+    SERVICE = 'service'
+    ABOUT = 'about'
+    GOODBYE = 'goodbye'
+    BACK = 'back'
+    TO_MAIN_MENU = 'to_main_menu'
+    MORE = 'more'
+    BOOK = 'book'
+    SHOWMAP = 'showmap'
+
+
+class ErrorState:
+    UNKNOWN = 0
+    TIMEOUT = 1
+    INDEV = 2
+    UNAVAILABLE = 3
+
+
+CallbackState = namedtuple('CallbackState', 'menu,button,value', defaults=[None] * 3)
 
 
 class ConversationState:
