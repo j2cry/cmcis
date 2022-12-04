@@ -71,13 +71,23 @@ class MenuHandler:
         context.user_data['evfilter'] = button
         # request actual events depending on pressed button
         events = connector.get_events(button, uid=uid)            # TODO доработать запрос БД
-        # print(f'button: {cbtarget.button}', *events, sep='\n')        # DEBUG FEATURE
-        kbd = build_inline([        # build inline in no events found
+        booked = [ev for ev in events if ev['booked']]
+        # build zero-events keyboard
+        kbd = build_inline([
             {self.text['BUTTON', 'TO_RELATED_CHANNEL']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'},     # TODO link to channel
             {self.text['BUTTON', 'TO_MAIN_MENU']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'}
-        ]) if not events else None
-        # push message
-        evlist = [query.message.edit_text(self.text['MESSAGE', 'EVENTS', bool(events)], reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        ]) if not events else build_inline([
+            {self.text['BUTTON', 'TO_EVENTS']: f'{MenuCallbackData.EVLIST}:{ButtonCallbackData.EVENTS}'},
+            {self.text['BUTTON', 'TO_MAIN_MENU']: f'{MenuCallbackData.MAIN}:{ButtonCallbackData.TO_MAIN_MENU}'}
+        ]) if not booked and (button == ButtonCallbackData.BOOKING) else None
+        # setup zero-events text
+        if button == ButtonCallbackData.EVENTS:
+            TEXT = self.text['MESSAGE', 'EVENTS', bool(events)]
+        elif button == ButtonCallbackData.BOOKING:      # for BOOKING: check announces
+            TEXT = self.text['MESSAGE', 'BOOKS', bool(booked) if events else 2]
+            events = booked
+        # push message        
+        evlist = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         # collect events list
         for num, ev in enumerate(events, 1):
             kbd = build_inline([
@@ -107,7 +117,7 @@ class MenuHandler:
         if not ev:
             return self.raise_error(query, context, state=ErrorState.UNAVAILABLE)
         # prepare infocard
-        infocard = f"*{ev['activity_title']}*" \
+        infocard = f"*{ev['activity_title']}*\n" \
                     f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                     f"{ev['addr']}\n" \
                     f"{ev['info']}" \

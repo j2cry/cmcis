@@ -117,9 +117,9 @@ class BotConnector():
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL '1' hour)'''
             parameters = (kwargs.get('uid'), )
             # booking filter
-            if mode == ButtonCallbackData.BOOKING:
-                condition = '''a.active AND (%s = ANY(r.visitors))'''
-                parameters = (*parameters, kwargs.get('uid'), )
+            # if mode == ButtonCallbackData.BOOKING:
+            #     condition += ''' AND (%s = ANY(r.visitors))'''
+            #     parameters = (*parameters, kwargs.get('uid'), )
 
         # elif mode == ButtonCallbackData.BOOKING:
         #     ...
