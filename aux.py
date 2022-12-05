@@ -151,7 +151,7 @@ class TGActions:
     def func_send_notify(query, context):
         """ Notify subscribers """
         event = context.user_data['selected_event']
-        params = (event['showtime'].strftime('%d/%m/%Y'), event['showtime'].strftime('%H:%M'))
+        params = (event['title'], event['showtime'].strftime('%d/%m/%Y'), event['showtime'].strftime('%H:%M'), event['addr'])
         for row in context.user_data.get('report'):
             context.bot.send_message(row['client_id'], TGText.NOTIFICATION % params, parse_mode=ParseMode.MARKDOWN)
         return True, False

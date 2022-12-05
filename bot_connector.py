@@ -82,9 +82,10 @@ class BotConnector():
                 FROM {self.schema}.booking 
                 WHERE actual
                 GROUP BY activity_id) 
-            SELECT a.activity_id, a.title, a.place, a.max_visitors, a.showtime, a.info, r.visitors 
+            SELECT a.activity_id, a.title, a.place, a.max_visitors, a.showtime, a.info, r.visitors, p.addr
             FROM {self.schema}.activity a 
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
+            JOIN {self.schema}.place p on p.place_id = a.place
             WHERE {condition}
             ORDER BY a.showtime
             '''
