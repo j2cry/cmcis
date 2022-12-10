@@ -1,0 +1,4 @@
+SERVICE_INTERVAL = '7 day'
+ACTUAL_INTERVAL = '1 hour'
+
+MAXBOOK = 2

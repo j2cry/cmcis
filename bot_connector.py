@@ -3,12 +3,10 @@ import keyring
 import psycopg2
 from psycopg2.extras import DictCursor
 from functools import wraps
-from menu import ButtonCallbackData
+from menu import CallbackData
 from string import punctuation
 from datetime import datetime
-
-
-SERVICE_INTERVAL = '7 day'
+from predefined import ACTUAL_INTERVAL, SERVICE_INTERVAL
 
 
 class ShowEvent(dict):
@@ -90,37 +88,19 @@ class BotConnector():
     def get_events(self, mode, **kwargs):
         """ Get required events """
         eid = kwargs.get('eid', None)
-        # if mode == ButtonCallbackData.EVENTS:
-        #     condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime)
-        #         AND (r.visitors is NULL OR 
-        #             ((CARDINALITY(r.visitors) < a.max_visitors) AND (%s != ALL(r.visitors))))'''
-        #     parameters = (kwargs.get('uid'), )
-        # elif mode == ButtonCallbackData.BOOKING:
-        #     condition = 'a.active AND (NOW() < a.showtime) AND %s = ANY(r.visitors)'
-        #     parameters = (kwargs.get('uid'), )
-        # elif mode == ButtonCallbackData.SERVICE:
-        #     condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
-        #     parameters = (SERVICE_INTERVAL, )
-        # else:
-        #     return []
-        # uid = kwargs.get('uid')
 
-        if mode == ButtonCallbackData.SERVICE:
+        if mode == CallbackData.SERVICE:
             fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
             parameters = (SERVICE_INTERVAL, )
         
-        elif mode in (ButtonCallbackData.EVENTS, ButtonCallbackData.BOOKING):
+        elif mode in (CallbackData.EVENTS, CallbackData.BOOKING):
             fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked ''' 
                     # TODO также проверять очередь бронирования
-            condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL '1' hour)'''
-            parameters = (kwargs.get('uid'), )
-            # booking filter
-            # if mode == ButtonCallbackData.BOOKING:
-            #     condition += ''' AND (%s = ANY(r.visitors))'''
-            #     parameters = (*parameters, kwargs.get('uid'), )
+            condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
+            parameters = (kwargs.get('uid'), ACTUAL_INTERVAL, )
 
-        # elif mode == ButtonCallbackData.BOOKING:
+        # elif mode == CallbackData.BOOKING:
         #     ...
         
         # select event 
