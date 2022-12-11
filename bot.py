@@ -34,7 +34,7 @@ menu = MenuHandler(text)
 def debugger(update, context):
     """ For manual testing new features or development """
     print('DEBUGGER CALLBACK')
-    return ConversationState.MENU
+    return menu.direct_switch(update, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
 
 
 def incorrect_input(update, context):
@@ -95,22 +95,23 @@ if __name__ == '__main__':
             ],
 
             ConversationState.MENU: [
-                # CallbackQueryHandler(debugger, pattern='DEBUG'),
+                CallbackQueryHandler(debugger, pattern='DEBUG'),
                 CallbackQueryHandler(menu.main, pattern=rf'^{CallbackData.MAIN}'),
                 CallbackQueryHandler(menu.available_activities, pattern=rf'^{CallbackData.ANNOUNCE}|{CallbackData.MYBOOKING}'),
                 CallbackQueryHandler(menu.service_activities, pattern=rf'^{CallbackData.SERVICE}'),
                 CallbackQueryHandler(menu.activity_info, pattern=rf'^{CallbackData.MORE}'),
                 CallbackQueryHandler(menu.showmap, pattern=rf'^{CallbackData.SHOWMAP}'),
+                CallbackQueryHandler(menu.showticket, pattern=rf'^{CallbackData.SHOWTICKET}'),
                 CallbackQueryHandler(menu.book, pattern=rf'^{CallbackData.BOOK}'),
                 CallbackQueryHandler(menu.book_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM}'),
                 CallbackQueryHandler(menu.book_result, pattern=rf'^{CallbackData.BOOK_ACCEPT}'),
-                CallbackQueryHandler(menu.goodbye, pattern=rf'^{CallbackData.GOODBYE}'),
+                CallbackQueryHandler(partial(menu.direct_switch, target=CallbackData.GOODBYE), pattern=rf'^{CallbackData.GOODBYE}'),
                 # CallbackQueryHandler(menu.action, pattern='action'),  # deprecated
             ],
 
             ConversationHandler.TIMEOUT: [
-                MessageHandler(Filters.all, partial(menu.raise_error, state=ErrorState.TIMEOUT)),
-                CallbackQueryHandler(partial(menu.raise_error, state=ErrorState.TIMEOUT)),
+                MessageHandler(Filters.all, partial(menu.direct_switch, target=CallbackData.ERROR, errstate=ErrorState.TIMEOUT)),
+                CallbackQueryHandler(partial(menu.direct_switch, target=CallbackData.ERROR, errstate=ErrorState.TIMEOUT)),
             ]
         },
         fallbacks=[MessageHandler(Filters.all, incorrect_input)],

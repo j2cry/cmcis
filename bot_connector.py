@@ -85,26 +85,21 @@ class BotConnector():
         return user_info[0].get(field, default) if user_info else {}
 
     @manage_connection
-    def get_events(self, mode, **kwargs):
+    def get_events(self, mode=CallbackData.ANNOUNCE, **kwargs):
         """ Get required events """
-        eid = kwargs.get('eid', None)
-
         if mode == CallbackData.SERVICE:
             fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
-            parameters = (SERVICE_INTERVAL, )
+            parameters = (kwargs.get('uid'), SERVICE_INTERVAL, )
         
         elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
             fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked ''' 
                     # TODO также проверять очередь бронирования
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
-            parameters = (kwargs.get('uid'), ACTUAL_INTERVAL, )
-
-        # elif mode == CallbackData.BOOKING:
-        #     ...
+            parameters = (kwargs.get('uid'), kwargs.get('uid'), ACTUAL_INTERVAL, )
         
         # select event 
-        if eid is not None:
+        if (eid := kwargs.get('eid', None)) is not None:
             condition += ' AND a.activity_id = %s'
             parameters = (*parameters, eid)
 
@@ -127,10 +122,12 @@ class BotConnector():
                 p.info place_info,
                 p.addr,
                 p.maplink,
-                a.max_visitors - COALESCE(r.booked, 0) left_places
+                a.max_visitors - COALESCE(r.booked, 0) left_places,
+                b.quantity
                 {fields}
             FROM {self.schema}.activity a 
             JOIN {self.schema}.place p ON p.place_id = a.place
+            JOIN {self.schema}.booking b ON b.client_id = %s AND b.activity_id = a.activity_id
             LEFT JOIN reg r ON r.activity_id = a.activity_id 
             WHERE {condition}
             ORDER BY a.showtime

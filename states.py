@@ -7,6 +7,7 @@ from collections import namedtuple
 
 class CallbackData:
     """ Button callback data """
+    ERROR = 'error'
     BACK = 'back'
     MAIN = 'main'
     ANNOUNCE = 'announce'
@@ -17,6 +18,7 @@ class CallbackData:
     MORE = 'more'
     BOOK = 'book'
     SHOWMAP = 'showmap'
+    SHOWTICKET = 'showticket'
     BOOK_CONFIRM = 'confirm_book'
     BOOK_ACCEPT = 'accept_book'
 
@@ -26,9 +28,9 @@ class ErrorState:
     TIMEOUT = 1
     INDEV = 2
     UNAVAILABLE = 3
+    BOOK_DECLINED = 4
 
 
-# CallbackState = namedtuple('CallbackState', 'menu,button,value', defaults=[None] * 3)   # target menu, pressed button, button additional value
 CallbackState = namedtuple('CallbackState', 'button,value', defaults=[None] * 2)   # pressed button and its additional value
 
 
