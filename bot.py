@@ -58,7 +58,7 @@ def start(update, context):
     if not (specname := connector.get_user_field(user['id'], field='specname')):
         context.user_data['last_message'] = update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)   # TODO Hide keyboard ?
         return ConversationState.FIRST_MET
-    
+
     context.user_data['specname'] = specname
     context.user_data['cvstate'] = 1      # user exists state
     return menu.main(update, context)

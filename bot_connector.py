@@ -21,14 +21,14 @@ class ShowEvent(dict):
     def isregistred(self, uid):
         val = uid in self['visitors'] if self['visitors'] else False
         return val
-    
+
     def formatted_title(self, multirow=False):
         return self['showtime'].strftime('%d/%m/%Y, %H:%M') + ('\n' if multirow else ' ') + self['title']
 
     @property
     def filename(self):
         return re.sub(rf'[{punctuation}]|\s', '_', self.formatted_title()) + '.csv'
-    
+
     @property
     def past(self):
         return self['showtime'] < datetime.now()
@@ -44,22 +44,22 @@ class BotConnector():
         self.port = port
         self.__conn = None
         self.__cursor = None
-    
+
     def manage_connection(method):
         """ Connection manager for methods """
         @wraps(method)
         def wrapper(self, *args, **kwargs):
-            self.__conn = psycopg2.connect(dbname=self.dbname, user=self.username, 
-                                           password=keyring.get_password(self.dbname, self.username), 
+            self.__conn = psycopg2.connect(dbname=self.dbname, user=self.username,
+                                           password=keyring.get_password(self.dbname, self.username),
                                            host=self.host, port=self.port)
             self.__conn.autocommit = True
             self.__cursor = self.__conn.cursor(cursor_factory=DictCursor)
             result = method(self, *args, **kwargs)      # run method
             self.__cursor.close()
-            self.__conn.close()            
+            self.__conn.close()
             return result
         return wrapper
-    
+
     @manage_connection
     def set_user(self, client_id, **kwargs):
         """ Add or update user, return admin status """
@@ -76,7 +76,7 @@ class BotConnector():
             VALUES (%s{paramholder})
             ON CONFLICT (client_id) DO {on_conflict}'''
         self.__cursor.execute(BASIC_QUERY, (client_id, *[v for k, v in kwargs.items() if k in fields]))
-    
+
     @manage_connection
     def get_user_field(self, client_id, *, field, default=None):
         """ Get user info field or default if not exists """
@@ -91,14 +91,14 @@ class BotConnector():
             fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
             parameters = (kwargs.get('uid'), SERVICE_INTERVAL, )
-        
+
         elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
-            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked ''' 
+            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked '''
                     # TODO также проверять очередь бронирования
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
             parameters = (kwargs.get('uid'), kwargs.get('uid'), ACTUAL_INTERVAL, )
-        
-        # select event 
+
+        # select event
         if (eid := kwargs.get('eid', None)) is not None:
             condition += ' AND a.activity_id = %s'
             parameters = (*parameters, eid)
@@ -109,9 +109,9 @@ class BotConnector():
                     activity_id,
                     ARRAY_AGG(client_id) visitors,
                     COALESCE(SUM(quantity), 0) booked
-                FROM {self.schema}.booking 
+                FROM {self.schema}.booking
                 WHERE quantity > 0
-                GROUP BY activity_id) 
+                GROUP BY activity_id)
             SELECT
                 a.activity_id,
                 a.title activity_title,
@@ -123,12 +123,12 @@ class BotConnector():
                 p.addr,
                 p.maplink,
                 a.max_visitors - COALESCE(r.booked, 0) left_places,
-                b.quantity
+                COALESCE(b.quantity, 0) quantity
                 {fields}
-            FROM {self.schema}.activity a 
+            FROM {self.schema}.activity a
             JOIN {self.schema}.place p ON p.place_id = a.place
-            JOIN {self.schema}.booking b ON b.client_id = %s AND b.activity_id = a.activity_id
-            LEFT JOIN reg r ON r.activity_id = a.activity_id 
+            LEFT JOIN {self.schema}.booking b ON b.client_id = %s AND b.activity_id = a.activity_id
+            LEFT JOIN reg r ON r.activity_id = a.activity_id
             WHERE {condition}
             ORDER BY a.showtime
             '''
@@ -141,15 +141,15 @@ class BotConnector():
     def set_registration(self, client_id, activity_id, value):
         """ Update user registration row """
         BASIC_QUERY = f'''
-            INSERT INTO {self.schema}.booking (client_id, activity_id, quantity, modified, num_changes) 
-            VALUES (%s, %s, %s, NOW(), 0) 
-            ON CONFLICT (client_id, activity_id) DO UPDATE 
+            INSERT INTO {self.schema}.booking (client_id, activity_id, quantity, modified, num_changes)
+            VALUES (%s, %s, %s, NOW(), 0)
+            ON CONFLICT (client_id, activity_id) DO UPDATE
             SET quantity = EXCLUDED.quantity,
                 modified = EXCLUDED.modified,
                 num_changes = {self.schema}.booking.num_changes + 1'''
         parameters = (client_id, activity_id, value)
         self.__cursor.execute(BASIC_QUERY, parameters)
-    
+
     @manage_connection
     def get_visitors_info(self, activity_id):
         BASIC_QUERY = f'''

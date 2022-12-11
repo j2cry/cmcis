@@ -48,7 +48,7 @@ class DialogMessages:
         dialog.read(filepath)
         # build messages dict
         self.__messages = {section: {k: [item.strip() for item in v.split(sep)] for k, v in dialog[section].items()} for section in dialog}
-    
+
     def __getitem__(self, index):
         section, key = index[:2]
         values = self.__messages.get(section.upper(), {}).get(key.lower(), [None])

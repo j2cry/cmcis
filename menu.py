@@ -127,9 +127,9 @@ class MenuHandler:
             TEXT = f"*{ev['activity_title']}*\n" \
                    f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                    f"{(ev['announce']) if ev['announce'] else ''}\n" \
-                   f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}\n" \
+                   f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] else ())}\n" \
                    f""
-                   # TODO текст по state: про места, очередь, бронирование итп            
+                   # TODO текст по state: про места, очередь, бронирование итп
             evlist.append(query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
         context.user_data['last_messages'] = evlist
         return ConversationState.MENU
@@ -236,18 +236,19 @@ class MenuHandler:
             ev['showtime'].strftime('%H:%M'),
             ev['place_title'],
         )
+        left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2
         TEXT = self.text['MESSAGE', 'BOOK_PROCESS_HEAD', ev['quantity'] > 0] % parameters + \
-               f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', ev['left_places'] > 1] % ev['left_places']}" + \
-               (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 2 + (ev['quantity'] > 1)] % ev['quantity']}" if ev['quantity'] else "") + \
+               f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', left_places_state] % (ev['left_places'] if ev['left_places'] > 1 else ())}" + \
+               (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 3 + (ev['quantity'] > 1)] % ev['quantity']}" if ev['quantity'] else "") + \
                f" {self.text['MESSAGE', 'BOOK_PROCESS_FINAL', ev['quantity'] > 0]}"
 
         print('BOOKED QUANTITY:', ev['quantity'])
         print('LEFT PLACES:', ev['left_places'])
 
         # prepare keyboard
-        available_range = range(1, min(MAXBOOK + 1, max(ev['left_places'], ev['quantity'])) + 1)
+        available_range = range(1, min(MAXBOOK + 1, ev['left_places'] + ev['quantity']) + 1)
         kbd = build_inline([
-            {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if ev['left_places'] == 1 else
+            {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if ev['left_places'] + ev['quantity'] == 1 else
             {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in available_range},
             {self.text['BUTTON', 'BOOK_QUANTITY', 2]: f'{CallbackData.BOOK_CONFIRM}:0'} if ev['quantity'] else {},
             {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
@@ -302,7 +303,7 @@ class MenuHandler:
         # push message
         context.user_data['last_messages'] = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.MENU
-    
+
     @answer
     @parse_parameters
     def book_result(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
@@ -313,14 +314,14 @@ class MenuHandler:
         ev = connector.get_events(evfilter, uid=uid, eid=action_params['activity_id'])
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
-        # NOTE check SQL-side?        
-        if int(ev['left_places']) >= int(action_params['quantity']):
+        # NOTE check SQL-side?
+        if (int(ev['left_places']) + int(ev['quantity'])) >= int(action_params['quantity']):
             result = connector.set_registration(uid, action_params['activity_id'], action_params['quantity'])
         else:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.BOOK_DECLINED)
 
         breakpt = 4
-        # TODO 
+        # TODO
         return self.direct_switch(query, context, target=CallbackData.MAIN)
 
     def __delete_messages(self, context):
