@@ -3,7 +3,7 @@ from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMa
 from states import ConversationState, CallbackData, ErrorState, CallbackState
 from functools import wraps
 from inspect import Parameter, signature
-from predefined import MAXBOOK
+from predefined import MAXBOOK, BOT_ADMIN_USERNAME, RELATED_CHANNEL
 
 
 def build_reply(schema: List[List], **kwargs):
@@ -12,7 +12,15 @@ def build_reply(schema: List[List], **kwargs):
 
 def build_inline(schema: List[Dict], **kwargs):
     """ Create telegram chat menu as inline keyboard from list of dictss with button names """
-    return InlineKeyboardMarkup([[InlineKeyboardButton(k, callback_data=v) for k, v in row.items()] for row in schema], **kwargs)
+    return InlineKeyboardMarkup([[InlineKeyboardButton(k, **v) if isinstance(v, dict) else InlineKeyboardButton(k, callback_data=v)
+                                for k, v in row.items()] for row in schema], **kwargs)
+
+
+def collect_card(*parts, first_bold=True):
+    prepared = [p[1] % p[0] if isinstance(p, (tuple, list)) else p for p in parts if p]
+    if prepared and first_bold:
+        prepared[0] = f'*{prepared[0]}*'
+    return '\n'.join(prepared)
 
 
 class MenuHandler:
@@ -68,15 +76,15 @@ class MenuHandler:
         cvstate = context.user_data['cvstate']      # conversation state
         # build keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'EVENTS']: CallbackData.EVENTS},
-            {self.text['BUTTON', 'BOOKING']: CallbackData.BOOKING},
+            {self.text['BUTTON', 'ANNOUNCE']: CallbackData.ANNOUNCE},
+            {self.text['BUTTON', 'BOOKING']: CallbackData.MYBOOKING},
             {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE} if is_admin else {},
             {self.text['BUTTON', 'ABOUT']: CallbackData.ABOUT},
             {self.text['BUTTON', 'GOODBYE']: CallbackData.GOODBYE},
         ])
         self.__delete_messages(context)
         infotext = self.text['MESSAGE', 'WELCOME', 2] if (cbstate.button == CallbackData.MAIN) else self.text['MESSAGE', 'WELCOME', cvstate] % context.user_data['specname']
-        context.user_data['last_messages'] = [query.message.reply_text(infotext, reply_markup=kbd)]
+        context.user_data['last_messages'] = [query.message.reply_text(infotext, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.MENU
 
     @answer
@@ -90,16 +98,16 @@ class MenuHandler:
         booked = [ev for ev in events if ev['is_booked']]
         # build zero-events keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'TO_RELATED_CHANNEL']: CallbackData.MAIN},     # TODO link to channel
+            {self.text['BUTTON', 'TO_RELATED_CHANNEL']: {'url': RELATED_CHANNEL}},      # NOTE is it possible to handle this button?
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ]) if not events else build_inline([
-            {self.text['BUTTON', 'TO_EVENTS']: CallbackData.EVENTS},
+            {self.text['BUTTON', 'TO_ANNOUNCE']: CallbackData.ANNOUNCE},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
-        ]) if not booked and (cbstate.button == CallbackData.BOOKING) else None
+        ]) if not booked and (cbstate.button == CallbackData.MYBOOKING) else None
         # setup zero-events text
-        if cbstate.button == CallbackData.EVENTS:
-            TEXT = self.text['MESSAGE', 'EVENTS', bool(events)]
-        elif cbstate.button == CallbackData.BOOKING:      # for BOOKING: check announces
+        if cbstate.button == CallbackData.ANNOUNCE:
+            TEXT = self.text['MESSAGE', 'ANNOUNCE', bool(events)]
+        elif cbstate.button == CallbackData.MYBOOKING:      # for BOOKING: check announces
             TEXT = self.text['MESSAGE', 'BOOKS', bool(booked) if events else 2]
             events = booked
         # push message
@@ -115,13 +123,13 @@ class MenuHandler:
                 {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN} if num == len(events) else {},
             ])
             # TODO настроить отображение карточки анонса
-            infocard = f"*{ev['activity_title']}*\n" \
-                        f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
-                        f"{(ev['announce']) if ev['announce'] else ''}\n" \
-                        f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}\n" \
-                        f""
-                        # TODO текст по state: про места, очередь, бронирование итп
-            evlist.append(query.message.reply_text(infocard, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
+            TEXT = f"*{ev['activity_title']}*\n" \
+                   f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
+                   f"{(ev['announce']) if ev['announce'] else ''}\n" \
+                   f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}\n" \
+                   f""
+                   # TODO текст по state: про места, очередь, бронирование итп            
+            evlist.append(query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
         context.user_data['last_messages'] = evlist
         return ConversationState.MENU
 
@@ -137,7 +145,7 @@ class MenuHandler:
         kbd = build_inline([
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ]) if not events else None
-        TEXT = self.text['MESSAGE', 'EVENTS', 2 + bool(events)]
+        TEXT = self.text['MESSAGE', 'ANNOUNCE', 2 + bool(events)]
         # push message
         evlist = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         # collect events list
@@ -149,9 +157,9 @@ class MenuHandler:
                 {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN} if num == len(events) else {},
             ])
             # prepare infocard
-            infocard = f"*{ev['activity_title']}*\n" \
-                        f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n"
-            evlist.append(query.message.reply_text(infocard, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
+            TEXT = f"*{ev['activity_title']}*\n" \
+                   f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n"
+            evlist.append(query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
         context.user_data['last_messages'] = evlist
         return ConversationState.MENU
 
@@ -165,11 +173,11 @@ class MenuHandler:
         if not ev:
             return self.raise_error(query, context, state=ErrorState.UNAVAILABLE)
         # prepare infocard
-        infocard = f"*{ev['activity_title']}*\n" \
-                    f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
-                    f"{ev['addr']}\n" \
-                    f"{ev['info']}\n" \
-                    f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}"
+        TEXT = f"*{ev['activity_title']}*\n" \
+               f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
+               f"{ev['addr']}\n" \
+               f"{ev['activity_info']}\n" \
+               f"{self.text['FILLER', 'LEFT_PLACES']}: {ev['left_places']}"
         # prepare keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
@@ -178,7 +186,7 @@ class MenuHandler:
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # push message
-        context.user_data['last_messages'] = [query.message.reply_text(infocard, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        context.user_data['last_messages'] = [query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.MENU
 
     @answer
@@ -189,15 +197,18 @@ class MenuHandler:
         ev = connector.get_events(evfilter, uid=uid, eid=cbstate.value)
         if not ev:
             return self.raise_error(query, context, state=ErrorState.UNAVAILABLE)
-        # prepare infocard
-        infocard = f"Тут будет карта."      # TODO map link
+        TEXT = collect_card(ev['place_title'],
+                            ev['place_info'],
+                            ev['addr'],
+                            (ev['maplink'], self.text["FILLER", "SHOWMAP"]),
+                            )
         # prepare keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # push message
-        context.user_data['last_messages'] = [query.message.edit_text(infocard, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        context.user_data['last_messages'] = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]   # disable_web_page_preview
         return ConversationState.MENU
 
     @answer
@@ -210,7 +221,6 @@ class MenuHandler:
             return self.raise_error(query, context, state=ErrorState.UNAVAILABLE)
         # prepare infocard
         left_places_state = 1 + (ev['left_places'] > 1)
-        infocard = self.text['MESSAGE', 'BOOK_PROCESS'] + ' ' + self.text['MESSAGE', 'BOOK_PROCESS', left_places_state]
         parameters = (
             connector.get_user_field(uid, field='specname'),
             ev['activity_title'],
@@ -218,27 +228,74 @@ class MenuHandler:
             ev['showtime'].strftime('%H:%M'),
             ev['place_title']
         )
+        TEXT = (self.text['MESSAGE', 'BOOK_PROCESS'] + ' ' + self.text['MESSAGE', 'BOOK_PROCESS', left_places_state]) % parameters
         # prepare keyboard
+        temp = min(MAXBOOK + 1, ev['left_places'])
         kbd = build_inline([
-            {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.CONFIRM}:1'} if ev['left_places'] == 1 else
-            {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.CONFIRM}:{n}' for n in range(1, min(MAXBOOK + 1, ev['left_places']) + 1)},
+            {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if ev['left_places'] == 1 else
+            {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in range(1, min(MAXBOOK + 1, ev['left_places']) + 1)},
             {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
             # {self.text['BUTTON', 'MORE']: f'{MenuCallbackData.EVCARD}:{CallbackData.MORE}:{ev["activity_id"]}'},      # NOTE backup
-            # {self.text['BUTTON', 'TO_EVENTS']: f'{MenuCallbackData.EVLIST}:{CallbackData.BACK}'},                     # NOTE backup
+            # {self.text['BUTTON', 'TO_ANNOUNCE']: f'{MenuCallbackData.EVLIST}:{CallbackData.BACK}'},                     # NOTE backup
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # push message
         self.__delete_messages(context)
-        context.user_data['last_messages'] = [query.message.reply_text(infocard % parameters, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        context.user_data['last_messages'] = [query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.MENU
 
     @answer
     @parse_parameters
-    def confirm(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
-        """ General confirm sheet """
+    def book_confirm(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+        """ Confirm booking """
+        # request event information depending on menu section
+        ev = connector.get_events(evfilter, uid=uid, eid=cbprev.value)
+        if not ev:
+            return self.raise_error(query, context, state=ErrorState.UNAVAILABLE)
+        # prepare text
+        state = (int(cbstate.value) > 1) + (int(cbstate.value) > MAXBOOK)
+        parameters = (
+            connector.get_user_field(uid, field='specname'),
+            ev['activity_title'],
+            ev['showtime'].strftime('%d/%m/%Y'),
+            ev['showtime'].strftime('%H:%M'),
+        ) if state == 0 else (
+            connector.get_user_field(uid, field='specname'),
+            cbstate.value,
+            ev['activity_title'],
+            ev['showtime'].strftime('%d/%m/%Y'),
+            ev['showtime'].strftime('%H:%M'),
+        ) if state == 1 else (
+            connector.get_user_field(uid, field='specname'),
+            cbstate.value
+        )
+        TEXT = self.text['MESSAGE', f'{cbprev.button}_CONFIRM', state] % parameters
+        # prepare keyboard
+        kbd = build_inline([
+            {
+                self.text['BUTTON', 'CONFIRM', 1]: CallbackData.BOOK_ACCEPT if int(cbstate.value) < MAXBOOK + 1 else {'url': f'https://t.me/{BOT_ADMIN_USERNAME}'},     # NOTE is it possible to handle this button?
+                self.text['BUTTON', 'CONFIRM', 0]: f'{cbprev.button}:{CallbackData.BACK}'
+            },
+            {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
+        ])
+        # TODO update context - передавать activity_id и размер брони
+        context.user_data['action_params'] = {
+            'activity_id': cbprev.value,
+            'quantity': cbstate.value
+        }
+
+        # push message
+        context.user_data['last_messages'] = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        return ConversationState.MENU
+    
+    @answer
+    @parse_parameters
+    def book_result(self, query, context, cbstate=None, *, cbprev, action_params):
+        # TODO окончательные проверки, осуществление action, выдача результата
         print('='*25)
-        print('GENERAL CONFIRM METHOD')
-        print(cbprev, cbstate, sep='\n')        
+        print('BOOK RESULT METHOD')
+        print(cbprev, cbstate, sep='\n')
+        print(action_params)
         return self.raise_error(query, context, state=ErrorState.INDEV)
 
     # def action(self, update, context):
@@ -269,7 +326,7 @@ class MenuHandler:
         self.__delete_messages(context)
         context.user_data.clear()
         kbd = build_reply([[self.text['BUTTON', 'HELLO']]], one_time_keyboard=True, resize_keyboard=True)
-        context.user_data['last_messages'] = [query.message.reply_text(self.text['MESSAGE', 'ERROR', state], reply_markup=kbd)]
+        context.user_data['last_messages'] = [query.message.reply_text(self.text['MESSAGE', 'ERROR', state], reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.END
 
     @answer
@@ -277,6 +334,6 @@ class MenuHandler:
         self.__delete_messages(context)
         context.user_data.clear()
         kbd = build_reply([[self.text['BUTTON', 'HELLO']]], one_time_keyboard=True, resize_keyboard=True)
-        context.user_data['last_messages'] = [update.message.reply_text(self.text['MESSAGE', 'GOODBYE', '@random'], reply_markup=kbd)]
+        context.user_data['last_messages'] = [update.message.reply_text(self.text['MESSAGE', 'GOODBYE', '@random'], reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         # context.job_queue.run_once(lambda _: message.delete(), 2)     # run delayed task
         return ConversationState.END

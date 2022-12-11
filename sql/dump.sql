@@ -218,6 +218,7 @@ CREATE TABLE harpy.place (
     title character varying(100),
     addr character varying(200),
     info text,
+    maplink character varying(2048),
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -243,6 +244,13 @@ COMMENT ON COLUMN harpy.place.title IS 'Place title';
 --
 
 COMMENT ON COLUMN harpy.place.info IS 'Addtitional info';
+
+
+--
+-- Name: COLUMN place.maplink; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.place.maplink IS 'Link to related map';
 
 
 --

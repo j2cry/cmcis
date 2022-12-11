@@ -3,6 +3,7 @@ import pathlib
 import configparser
 import keyring
 
+from telegram import ParseMode
 from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler, InlineQueryHandler
 from telegram.ext.filters import Filters
 
@@ -55,7 +56,7 @@ def start(update, context):
     context.user_data['connector'] = connector
     # request user data
     if not (specname := connector.get_user_field(user['id'], field='specname')):
-        context.user_data['last_message'] = update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None)     #  NOTE parse_mode=ParseMode.MARKDOWN ?   # TODO Hide keyboard
+        context.user_data['last_message'] = update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)   # TODO Hide keyboard ?
         return ConversationState.FIRST_MET
     
     context.user_data['specname'] = specname
@@ -94,13 +95,15 @@ if __name__ == '__main__':
             ],
 
             ConversationState.MENU: [
+                # CallbackQueryHandler(debugger, pattern='DEBUG'),
                 CallbackQueryHandler(menu.main, pattern=rf'^{CallbackData.MAIN}'),
-                CallbackQueryHandler(menu.available_activities, pattern=rf'^{CallbackData.EVENTS}|{CallbackData.BOOKING}'),
+                CallbackQueryHandler(menu.available_activities, pattern=rf'^{CallbackData.ANNOUNCE}|{CallbackData.MYBOOKING}'),
                 CallbackQueryHandler(menu.service_activities, pattern=rf'^{CallbackData.SERVICE}'),
                 CallbackQueryHandler(menu.activity_info, pattern=rf'^{CallbackData.MORE}'),
                 CallbackQueryHandler(menu.showmap, pattern=rf'^{CallbackData.SHOWMAP}'),
                 CallbackQueryHandler(menu.book, pattern=rf'^{CallbackData.BOOK}'),
-                CallbackQueryHandler(menu.confirm, pattern=rf'^{CallbackData.CONFIRM}'),
+                CallbackQueryHandler(menu.book_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM}'),
+                CallbackQueryHandler(menu.book_result, pattern=rf'^{CallbackData.BOOK_ACCEPT}'),
                 CallbackQueryHandler(menu.goodbye, pattern=rf'^{CallbackData.GOODBYE}'),
                 # CallbackQueryHandler(menu.action, pattern='action'),  # deprecated
             ],

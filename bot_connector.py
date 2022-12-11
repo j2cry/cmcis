@@ -94,7 +94,7 @@ class BotConnector():
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
             parameters = (SERVICE_INTERVAL, )
         
-        elif mode in (CallbackData.EVENTS, CallbackData.BOOKING):
+        elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
             fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked ''' 
                     # TODO также проверять очередь бронирования
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
@@ -121,10 +121,12 @@ class BotConnector():
                 a.activity_id,
                 a.title activity_title,
                 a.announce,
-                a.info,
+                a.info activity_info,
                 a.showtime,
                 p.title place_title,
+                p.info place_info,
                 p.addr,
+                p.maplink,
                 a.max_visitors - COALESCE(r.booked, 0) left_places
                 {fields}
             FROM {self.schema}.activity a 

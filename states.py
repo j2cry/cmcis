@@ -9,15 +9,16 @@ class CallbackData:
     """ Button callback data """
     BACK = 'back'
     MAIN = 'main'
-    EVENTS = 'events'
-    BOOKING = 'booking'
+    ANNOUNCE = 'announce'
+    MYBOOKING = 'mybooking'
     SERVICE = 'service'
     ABOUT = 'about'
     GOODBYE = 'goodbye'
     MORE = 'more'
-    BOOK = 'tobook'
+    BOOK = 'book'
     SHOWMAP = 'showmap'
-    CONFIRM = 'confirm'
+    BOOK_CONFIRM = 'confirm_book'
+    BOOK_ACCEPT = 'accept_book'
 
 
 class ErrorState:
