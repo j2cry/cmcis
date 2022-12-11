@@ -148,7 +148,11 @@ class BotConnector():
                 modified = EXCLUDED.modified,
                 num_changes = {self.schema}.booking.num_changes + 1'''
         parameters = (client_id, activity_id, value)
-        self.__cursor.execute(BASIC_QUERY, parameters)
+        try:
+            self.__cursor.execute(BASIC_QUERY, parameters)            
+        except:
+            return False
+        return True
 
     @manage_connection
     def get_visitors_info(self, activity_id):

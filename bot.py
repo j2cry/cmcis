@@ -96,6 +96,7 @@ if __name__ == '__main__':
 
             ConversationState.MENU: [
                 CallbackQueryHandler(debugger, pattern='DEBUG'),
+                # CallbackQueryHandler(menu.back, pattern=rf'^{CallbackData.BACK}'),      # NOTE for future multistep backward
                 CallbackQueryHandler(menu.main, pattern=rf'^{CallbackData.MAIN}'),
                 CallbackQueryHandler(menu.available_activities, pattern=rf'^{CallbackData.ANNOUNCE}|{CallbackData.MYBOOKING}'),
                 CallbackQueryHandler(menu.service_activities, pattern=rf'^{CallbackData.SERVICE}'),
