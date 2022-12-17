@@ -169,7 +169,7 @@ class MenuHandler:
     def activity_info(self, query, context, *,  history, uid, connector, evfilter):
         """ Show activity large infocard """
         self.__delete_messages(context)
-        # request event information depending on pressed button     TODO убрать в декоратор?
+        # request event information depending on pressed button
         ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
@@ -186,7 +186,6 @@ class MenuHandler:
             {self.text['BUTTON', 'SHOWTICKET']: f'{CallbackData.SHOWTICKET}:{ev["activity_id"]}'} if ev['quantity'] else {},       # TODO
             {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
-            # TODO добавить кнопки ПОКАЗАТЬ БИЛЕТ
         ])
         # push message
         context.user_data['last_messages'] = [query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
@@ -196,7 +195,7 @@ class MenuHandler:
     @parse_parameters
     def showmap(self, query, context, *, history, uid, connector, evfilter):
         """ Show address & map """
-        # request event information depending on menu section   TODO убрать в декоратор?
+        # request event information depending on menu section
         ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
@@ -224,7 +223,7 @@ class MenuHandler:
     @parse_parameters
     def book(self, query, context, *, history, uid, connector, evfilter):
         """ Booking sheet """
-        # request event information depending on menu section   TODO убрать в декоратор?
+        # request event information depending on menu section
         ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
@@ -252,7 +251,7 @@ class MenuHandler:
         kbd = build_inline([
             {} if not one_ticket_state else      # booked 1 place and no places left -> don't show book choises
             {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if one_ticket_state == 1 else
-            {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in available_range},
+            {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in available_range if (n != ev['quantity']) or (n > MAXBOOK)},
 
             # TODO убирать кнопку с текущим кол-вом мест, если оно < MAXBOOK
 
