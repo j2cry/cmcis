@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ParseMode
-from states import ConversationState, CallbackData, ErrorState, CallbackState
+from states import ConversationState, CallbackData, ErrorState, CallbackState, HistoryState
 from functools import wraps
 from inspect import Parameter, signature
 from predefined import MAXBOOK, BOT_ADMIN_USERNAME, RELATED_CHANNEL
@@ -44,61 +44,32 @@ class MenuHandler:
         """ Parse selected context parameters """
         @wraps(method)
         def wrapper(self, query, context):
-            # collect required KEYWORD_ONLY parameters from context or use defaults
-            required_kw = {pname: context.user_data.get(pname, pvalue.default if pvalue.default != Parameter.empty else None)
-                           for pname, pvalue in signature(method).parameters.items() if pvalue.kind == Parameter.KEYWORD_ONLY}
-            # TODO ? collect POSITIONAL_OR_KEYWORD parameters: cbstate, cbprev ?
             # update menu callback state
             cbstate = CallbackState(*query.data.split(':') if hasattr(query, 'data') else [CallbackData.MAIN])    # target callback state
-            history = context.user_data.get('history', [])
-
-            # NOTE for future multistep backward
-            # if cbstate.button == CallbackData.MAIN:
-            #     history = [cbstate, ]
-            #     cbprev = CallbackState(CallbackData.MAIN)
-            # elif cbstate.button != CallbackData.BACK:
-            #     history.append(cbstate)
-            #     cbprev = history[-2] if len(history) > 1 else CallbackState(CallbackData.MAIN)
-            # context.user_data['history'] = history
-            # # print('menu history', *history, '-' * 25, sep='\n')
-            # required_kw['cbstate'] = cbstate
-            # if 'cbprev' in required_kw:
-            #     required_kw['cbprev'] = cbprev
-
-            if cbstate.value == CallbackData.BACK:
-                history.pop()
+            history = context.user_data.get('history', HistoryState([cbstate, ]))
+            # update history
+            if cbstate.value and cbstate.value.startswith(CallbackData.BACK):
+                step = (-int(v.group(0)) + 1) if (v := re.search(r'\d+', cbstate.value)) else -1
+                history = HistoryState(history[:step])
             elif cbstate.button == CallbackData.MAIN:
-                history = [cbstate, ]
+                history = HistoryState([cbstate, ])
             else:
                 history.append(cbstate)
             context.user_data['history'] = history
+            # collect required KEYWORD_ONLY parameters from context or use defaults
+            required_kw = {pname: context.user_data.get(pname, pvalue.default if pvalue.default != Parameter.empty else None)
+                           for pname, pvalue in signature(method).parameters.items() if pvalue.kind == Parameter.KEYWORD_ONLY}
 
+            # NOTE collect POSITIONAL_OR_KEYWORD parameters ?
             print('menu history', *history, '-' * 25, sep='\n')
-            required_kw['cbstate'] = history[-1]
-            if 'cbprev' in required_kw:
-                required_kw['cbprev'] = history[-2] if len(history) > 1 else CallbackState()
 
             result = method(self, query, context, **required_kw)
             return result
         return wrapper
 
-    # @answer   # NOTE for future multistep backward
-    # @parse_parameters
-    # def back(self, query, context, cbstate=None, *, history):
-    #     """ Menu backward """
-    #     print('BACKWARD', cbstate.value)
-    #     step = int(cbstate.value) if cbstate.value else 1
-    #     if len(history) < step:
-    #         # cannot move back so far
-    #         return self.direct_switch(query, context, target=CallbackData.MAIN)
-    #     history = history[:-step]
-    #     context.user_data['history'] = history
-    #     query.data = ':'.join([str(val) for val in history[-1]])
-    #     return self.direct_switch(query, context, target=history[-1].button)
-
     @answer
     @parse_parameters
-    def main(self, query, context, cbstate=None, *, uid, connector):
+    def main(self, query, context, *, history, uid, connector):
         """ Show main menu """
         # parse additional required context parameters
         is_admin = connector.get_user_field(uid, field='is_admin')
@@ -113,18 +84,18 @@ class MenuHandler:
             {'debug action': 'DEBUG'},
         ])
         self.__delete_messages(context)
-        infotext = self.text['MESSAGE', 'WELCOME', 2] if (cbstate.button == CallbackData.MAIN) else self.text['MESSAGE', 'WELCOME', cvstate] % context.user_data['specname']
+        infotext = self.text['MESSAGE', 'WELCOME', 2] if (history.prev.button == CallbackData.MAIN) else self.text['MESSAGE', 'WELCOME', cvstate] % context.user_data['specname']
         context.user_data['last_messages'] = [query.message.reply_text(infotext, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.MENU
 
     @answer
     @parse_parameters
-    def available_activities(self, query, context, cbstate=None, *, uid, connector):
+    def available_activities(self, query, context, *, history, uid, connector):
         """ Show available activities """
         # setup context
-        context.user_data['evfilter'] = cbstate.button
+        context.user_data['evfilter'] = history.current.button
         # request actual events depending on pressed button
-        events = connector.get_events(cbstate.button, uid=uid)
+        events = connector.get_events(history.current.button, uid=uid)
         booked = [ev for ev in events if ev['is_booked']]
         # build zero-events keyboard
         kbd = build_inline([
@@ -133,11 +104,11 @@ class MenuHandler:
         ]) if not events else build_inline([
             {self.text['BUTTON', 'TO_ANNOUNCE']: CallbackData.ANNOUNCE},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
-        ]) if not booked and (cbstate.button == CallbackData.MYBOOKING) else None
+        ]) if not booked and (history.current.button == CallbackData.MYBOOKING) else None
         # setup zero-events text
-        if cbstate.button == CallbackData.ANNOUNCE:
+        if history.current.button == CallbackData.ANNOUNCE:
             TEXT = self.text['MESSAGE', 'ANNOUNCE', bool(events)]
-        elif cbstate.button == CallbackData.MYBOOKING:      # for BOOKING: check announces
+        elif history.current.button == CallbackData.MYBOOKING:      # for BOOKING: check announces
             TEXT = self.text['MESSAGE', 'BOOKS', bool(booked) if events else 2]
             events = booked
         # push message
@@ -165,12 +136,12 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def service_activities(self, query, context, cbstate=None, *, uid, connector):
+    def service_activities(self, query, context, *, history, uid, connector):
         """ Manage actual activities """
         # setup context
-        context.user_data['evfilter'] = cbstate.button
+        context.user_data['evfilter'] = history.current.button
         # request actual events depending on pressed button
-        events = connector.get_events(cbstate.button, uid=uid)
+        events = connector.get_events(history.current.button, uid=uid)
         # build zero-events keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
@@ -195,11 +166,11 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def activity_info(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def activity_info(self, query, context, *,  history, uid, connector, evfilter):
         """ Show activity large infocard """
         self.__delete_messages(context)
         # request event information depending on pressed button     TODO убрать в декоратор?
-        ev = connector.get_events(evfilter, uid=uid, eid=cbstate.value)
+        ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
         # prepare infocard
@@ -213,8 +184,7 @@ class MenuHandler:
             {self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'SHOWMAP']: f'{CallbackData.SHOWMAP}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'SHOWTICKET']: f'{CallbackData.SHOWTICKET}:{ev["activity_id"]}'} if ev['quantity'] else {},       # TODO
-            {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
-            # {self.text['BUTTON', 'BACK']: CallbackData.BACK},     # NOTE for future multistep backward
+            {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
             # TODO добавить кнопки ПОКАЗАТЬ БИЛЕТ
         ])
@@ -224,10 +194,10 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def showmap(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def showmap(self, query, context, *, history, uid, connector, evfilter):
         """ Show address & map """
         # request event information depending on menu section   TODO убрать в декоратор?
-        ev = connector.get_events(evfilter, uid=uid, eid=cbstate.value)
+        ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
         TEXT = collect_card(ev['place_title'],
@@ -237,8 +207,7 @@ class MenuHandler:
                             )
         # prepare keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
-            # {self.text['BUTTON', 'BACK']: CallbackData.BACK},     # NOTE for future multistep backward
+            {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # push message
@@ -247,16 +216,16 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def showticket(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def showticket(self, query, context, *, history, uid, connector, evfilter):
         """ Show ticket info """
         return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
 
     @answer
     @parse_parameters
-    def book(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def book(self, query, context, *, history, uid, connector, evfilter):
         """ Booking sheet """
         # request event information depending on menu section   TODO убрать в декоратор?
-        ev = connector.get_events(evfilter, uid=uid, eid=cbstate.value)
+        ev = connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
         # prepare infocard
@@ -285,9 +254,10 @@ class MenuHandler:
             {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if one_ticket_state == 1 else
             {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in available_range},
 
+            # TODO убирать кнопку с текущим кол-вом мест, если оно < MAXBOOK
+
             {self.text['BUTTON', 'BOOK_QUANTITY', 2]: f'{CallbackData.BOOK_CONFIRM}:0'} if ev['quantity'] else {},
-            # {self.text['BUTTON', 'BACK']: CallbackData.BACK},     # NOTE for future multistep backward
-            {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}'},
+            {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
             # {self.text['BUTTON', 'MORE']: f'{CallbackData.MORE}:{ev["activity_id"]}'},      # NOTE backup
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
@@ -298,14 +268,14 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def book_confirm(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def book_confirm(self, query, context, *, history, uid, connector, evfilter):
         """ Confirm booking """
         # request event information depending on menu section
-        ev = connector.get_events(evfilter, uid=uid, eid=cbprev.value)
+        ev = connector.get_events(evfilter, uid=uid, eid=history.prev.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
         # prepare text
-        state = (int(cbstate.value) > 0) * (1 + (int(cbstate.value) > 1) + (int(cbstate.value) > MAXBOOK))
+        state = (int(history.current.value) > 0) * (1 + (int(history.current.value) > 1) + (int(history.current.value) > MAXBOOK))
         parameters = (
             connector.get_user_field(uid, field='specname'),
             ev['activity_title'],
@@ -313,28 +283,27 @@ class MenuHandler:
             ev['showtime'].strftime('%H:%M'),
         ) if state < 2 else (
             connector.get_user_field(uid, field='specname'),
-            cbstate.value,
+            history.current.value,
             ev['activity_title'],
             ev['showtime'].strftime('%d/%m/%Y'),
             ev['showtime'].strftime('%H:%M'),
         ) if state == 2 else (
             connector.get_user_field(uid, field='specname'),
-            cbstate.value,
+            history.current.value,
         )
-        TEXT = self.text['MESSAGE', f'{cbprev.button}_CONFIRM', state] % parameters
+        TEXT = self.text['MESSAGE', f'{history.prev.button}_CONFIRM', state] % parameters
         # prepare keyboard
         kbd = build_inline([
             {
-                self.text['BUTTON', 'CONFIRM', 1]: CallbackData.BOOK_ACCEPT if int(cbstate.value) < MAXBOOK + 1 else {'url': f'https://t.me/{BOT_ADMIN_USERNAME}'},     # NOTE is it possible to handle this button?
-                # self.text['BUTTON', 'BACK']: CallbackData.BACK        # NOTE for future multistep backward
-                self.text['BUTTON', 'CONFIRM', 0]: f'{cbprev.button}:{CallbackData.BACK}'
+                self.text['BUTTON', 'CONFIRM', 1]: CallbackData.BOOK_ACCEPT if int(history.current.value) < MAXBOOK + 1 else {'url': f'https://t.me/{BOT_ADMIN_USERNAME}'},     # NOTE is it possible to handle this button?
+                self.text['BUTTON', 'CONFIRM', 0]: f'{history.prev.button}:{CallbackData.BACK}'
             },
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # update context
         context.user_data['action_params'] = {
-            'activity_id': cbprev.value,
-            'quantity': cbstate.value
+            'activity_id': history.prev.value,
+            'quantity': history.current.value
         }
         # push message
         context.user_data['last_messages'] = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
@@ -342,7 +311,7 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def book_result(self, query, context, cbstate=None, *, cbprev, uid, connector, evfilter):
+    def book_result(self, query, context, *, history, uid, connector, evfilter):
         # clean part of context
         action_params = context.user_data.pop('action_params')
         print(uid, action_params)
@@ -360,8 +329,7 @@ class MenuHandler:
         # prepare keyboard
         kbd = build_inline([
             {},
-            # {self.text['BUTTON', 'BACK']: f'{cbprev.button}:{CallbackData.BACK}(2)'} if not free_places_state else {},
-            # {self.text['BUTTON', 'BACK']: f'{CallbackData.BACK}:2'} if not free_places_state else {},      # NOTE for future multistep backward
+            {self.text['BUTTON', 'BACK']: f'{history[-4].button}:{CallbackData.BACK}(4)'},    # 4-step backward
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN},
         ])
         # push message

@@ -34,6 +34,21 @@ class ErrorState:
 CallbackState = namedtuple('CallbackState', 'button,value', defaults=[None] * 2)   # pressed button and its additional value
 
 
+class HistoryState(list):
+    def __getitem__(self, index=None):
+        if index == None:
+            index = -1
+        return super().__getitem__(index)
+
+    @property
+    def prev(self):
+        return self[-2] if len(self) > 2 else CallbackState()
+
+    @property
+    def current(self):
+        return self[-1] if len(self) else CallbackState()
+
+
 class ConversationState:
     END = ConversationHandler.END
     FIRST_MET = 1

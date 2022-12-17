@@ -96,7 +96,6 @@ if __name__ == '__main__':
 
             ConversationState.MENU: [
                 CallbackQueryHandler(debugger, pattern='DEBUG'),
-                # CallbackQueryHandler(menu.back, pattern=rf'^{CallbackData.BACK}'),      # NOTE for future multistep backward
                 CallbackQueryHandler(menu.main, pattern=rf'^{CallbackData.MAIN}'),
                 CallbackQueryHandler(menu.available_activities, pattern=rf'^{CallbackData.ANNOUNCE}|{CallbackData.MYBOOKING}'),
                 CallbackQueryHandler(menu.service_activities, pattern=rf'^{CallbackData.SERVICE}'),
@@ -107,7 +106,6 @@ if __name__ == '__main__':
                 CallbackQueryHandler(menu.book_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM}'),
                 CallbackQueryHandler(menu.book_result, pattern=rf'^{CallbackData.BOOK_ACCEPT}'),
                 CallbackQueryHandler(partial(menu.direct_switch, target=CallbackData.GOODBYE), pattern=rf'^{CallbackData.GOODBYE}'),
-                # CallbackQueryHandler(menu.action, pattern='action'),  # deprecated
             ],
 
             ConversationHandler.TIMEOUT: [
