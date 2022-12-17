@@ -276,6 +276,18 @@ ALTER SEQUENCE harpy.place_place_id_seq OWNED BY harpy.place.place_id;
 
 
 --
+-- Name: settings; Type: TABLE; Schema: harpy; Owner: cmcismaster
+--
+
+CREATE TABLE harpy.settings (
+    key character varying(50) NOT NULL,
+    value character varying(200)
+);
+
+
+ALTER TABLE harpy.settings OWNER TO cmcismaster;
+
+--
 -- Name: activity activity_id; Type: DEFAULT; Schema: harpy; Owner: cmcismaster
 --
 
@@ -319,6 +331,14 @@ ALTER TABLE ONLY harpy.client
 
 ALTER TABLE ONLY harpy.place
     ADD CONSTRAINT place_pk PRIMARY KEY (place_id);
+
+
+--
+-- Name: settings settings_un; Type: CONSTRAINT; Schema: harpy; Owner: cmcismaster
+--
+
+ALTER TABLE ONLY harpy.settings
+    ADD CONSTRAINT settings_un UNIQUE (key);
 
 
 --

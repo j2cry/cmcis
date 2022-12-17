@@ -12,6 +12,12 @@ services:
       PSQL_HANDLER_PASSWORD: ${PSQL_HANDLER_PASSWORD}
       PSQL_USER: ${PSQL_USER}
       PSQL_PASSWORD: ${PSQL_PASSWORD}
+
+      SERVICE_INTERVAL: ${SERVICE_INTERVAL}
+      ACTUAL_INTERVAL: ${ACTUAL_INTERVAL}
+      MAXBOOK: ${MAXBOOK}
+      BOT_ADMIN_USERNAME: ${BOT_ADMIN_USERNAME}
+      RELATED_CHANNEL: ${RELATED_CHANNEL}
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
     command: sh -c "envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql"

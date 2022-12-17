@@ -6,7 +6,6 @@ from functools import wraps
 from menu import CallbackData
 from string import punctuation
 from datetime import datetime
-from predefined import ACTUAL_INTERVAL, SERVICE_INTERVAL
 
 
 class ShowEvent(dict):
@@ -44,6 +43,7 @@ class BotConnector():
         self.port = port
         self.__conn = None
         self.__cursor = None
+        self.settings = self.load_settings()
 
     def manage_connection(method):
         """ Connection manager for methods """
@@ -90,13 +90,13 @@ class BotConnector():
         if mode == CallbackData.SERVICE:
             fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
-            parameters = (kwargs.get('uid'), SERVICE_INTERVAL, )
+            parameters = (kwargs.get('uid'), self.settings['SERVICE_INTERVAL'], )
 
         elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
             fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked '''
                     # TODO также проверять очередь бронирования
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
-            parameters = (kwargs.get('uid'), kwargs.get('uid'), ACTUAL_INTERVAL, )
+            parameters = (kwargs.get('uid'), kwargs.get('uid'), self.settings['ACTUAL_INTERVAL'], )
 
         # select event
         if (eid := kwargs.get('eid', None)) is not None:
@@ -162,3 +162,8 @@ class BotConnector():
             WHERE (b.activity_id = %s) AND (b.quantity > 0)'''
         self.__cursor.execute(BASIC_QUERY, (activity_id, ))
         return [dict(item) for item in self.__cursor.fetchall()]
+
+    @manage_connection
+    def load_settings(self):
+        self.__cursor.execute(f'SELECT * FROM {self.schema}.settings')
+        return dict(self.__cursor.fetchall())

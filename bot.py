@@ -56,7 +56,7 @@ def start(update, context):
     context.user_data['connector'] = connector
     # request user data
     if not (specname := connector.get_user_field(user['id'], field='specname')):
-        context.user_data['last_message'] = update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)   # TODO Hide keyboard ?
+        context.user_data['last_messages'] = [update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)]   # TODO Hide keyboard ?
         return ConversationState.FIRST_MET
 
     context.user_data['specname'] = specname

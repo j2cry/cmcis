@@ -4,7 +4,6 @@ from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMa
 from states import ConversationState, CallbackData, ErrorState, CallbackState, HistoryState
 from functools import wraps
 from inspect import Parameter, signature
-from predefined import MAXBOOK, BOT_ADMIN_USERNAME, RELATED_CHANNEL
 
 
 def build_reply(schema: List[List], **kwargs):
@@ -18,7 +17,13 @@ def build_inline(schema: List[Dict], **kwargs):
 
 
 def collect_card(*parts, first_bold=True):
-    prepared = [p[1] % p[0] if isinstance(p, (tuple, list)) else p for p in parts if p]
+    prepared = []
+    for p in parts:
+        if isinstance(p, (tuple, list)):
+            if p[0]:
+                prepared.append(p[1] % p[0])
+        elif p:
+            prepared.append(p)
     if prepared and first_bold:
         prepared[0] = f'*{prepared[0]}*'
     return '\n'.join(prepared)
@@ -99,7 +104,7 @@ class MenuHandler:
         booked = [ev for ev in events if ev['is_booked']]
         # build zero-events keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'TO_RELATED_CHANNEL']: {'url': RELATED_CHANNEL}},      # NOTE is it possible to handle this button?
+            {self.text['BUTTON', 'TO_RELATED_CHANNEL']: {'url': connector.settings['RELATED_CHANNEL']}},      # NOTE is it possible to handle this button?
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ]) if not events else build_inline([
             {self.text['BUTTON', 'TO_ANNOUNCE']: CallbackData.ANNOUNCE},
@@ -245,16 +250,13 @@ class MenuHandler:
         print('LEFT PLACES:', ev['left_places'])
 
         # prepare keyboard
-        # one_ticket_state = bool(ev['left_places']) + bool(ev['left_places'] + ev['quantity'] > 1)
+        MAXBOOK = int(connector.settings['MAXBOOK'])
         one_ticket_state = 2 * bool(ev['left_places'] + ev['quantity'] > 1) + (ev['left_places'] == 1 and not ev['quantity'])
         available_range = range(1, min(MAXBOOK + 1, ev['left_places'] + ev['quantity']) + 1)
         kbd = build_inline([
             {} if not one_ticket_state else      # booked 1 place and no places left -> don't show book choises
             {self.text['BUTTON', 'BOOK_QUANTITY']: f'{CallbackData.BOOK_CONFIRM}:1'} if one_ticket_state == 1 else
             {n if n <= MAXBOOK else f"{n} {self.text['BUTTON', 'BOOK_QUANTITY', 1]}": f'{CallbackData.BOOK_CONFIRM}:{n}' for n in available_range if (n != ev['quantity']) or (n > MAXBOOK)},
-
-            # TODO убирать кнопку с текущим кол-вом мест, если оно < MAXBOOK
-
             {self.text['BUTTON', 'BOOK_QUANTITY', 2]: f'{CallbackData.BOOK_CONFIRM}:0'} if ev['quantity'] else {},
             {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
             # {self.text['BUTTON', 'MORE']: f'{CallbackData.MORE}:{ev["activity_id"]}'},      # NOTE backup
@@ -273,6 +275,7 @@ class MenuHandler:
         ev = connector.get_events(evfilter, uid=uid, eid=history.prev.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
+        MAXBOOK = int(connector.settings['MAXBOOK'])
         # prepare text
         state = (int(history.current.value) > 0) * (1 + (int(history.current.value) > 1) + (int(history.current.value) > MAXBOOK))
         parameters = (
@@ -294,7 +297,7 @@ class MenuHandler:
         # prepare keyboard
         kbd = build_inline([
             {
-                self.text['BUTTON', 'CONFIRM', 1]: CallbackData.BOOK_ACCEPT if int(history.current.value) < MAXBOOK + 1 else {'url': f'https://t.me/{BOT_ADMIN_USERNAME}'},     # NOTE is it possible to handle this button?
+                self.text['BUTTON', 'CONFIRM', 1]: CallbackData.BOOK_ACCEPT if int(history.current.value) < MAXBOOK + 1 else {'url': f'https://t.me/{connector.settings["BOT_ADMIN_USERNAME"]}'},     # NOTE is it possible to handle this button?
                 self.text['BUTTON', 'CONFIRM', 0]: f'{history.prev.button}:{CallbackData.BACK}'
             },
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
@@ -333,8 +336,6 @@ class MenuHandler:
         ])
         # push message
         context.user_data['last_messages'] = [query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
-        # TODO showing result
-        # return self.direct_switch(query, context, target=CallbackData.MAIN)
         return ConversationState.MENU
 
     def __delete_messages(self, context):
