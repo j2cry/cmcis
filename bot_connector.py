@@ -123,7 +123,8 @@ class BotConnector():
                 p.addr,
                 p.maplink,
                 a.max_visitors - COALESCE(r.booked, 0) left_places,
-                COALESCE(b.quantity, 0) quantity
+                COALESCE(b.quantity, 0) quantity,
+                b.confirmed
                 {fields}
             FROM {self.schema}.activity a
             JOIN {self.schema}.place p ON p.place_id = a.place
@@ -138,18 +139,19 @@ class BotConnector():
         return result[0] if (eid is not None) and result else result
 
     @manage_connection
-    def set_registration(self, client_id, activity_id, value):
+    def set_registration(self, client_id, activity_id, value=None, confirmed=False):
         """ Update user registration row """
         BASIC_QUERY = f'''
-            INSERT INTO {self.schema}.booking (client_id, activity_id, quantity, modified, num_changes)
-            VALUES (%s, %s, %s, NOW(), 0)
+            INSERT INTO {self.schema}.booking (client_id, activity_id, quantity, modified, num_changes, confirmed)
+            VALUES (%s, %s, %s, NOW(), 0, %s)
             ON CONFLICT (client_id, activity_id) DO UPDATE
-            SET quantity = EXCLUDED.quantity,
+            SET quantity = COALESCE(EXCLUDED.quantity, {self.schema}.booking.quantity),
                 modified = EXCLUDED.modified,
-                num_changes = {self.schema}.booking.num_changes + 1'''
-        parameters = (client_id, activity_id, value)
+                confirmed = EXCLUDED.confirmed,
+                num_changes = {self.schema}.booking.num_changes + CAST((EXCLUDED.quantity IS NOT NULL) AS int)'''
+        parameters = (client_id, activity_id, value, confirmed)
         try:
-            self.__cursor.execute(BASIC_QUERY, parameters)            
+            self.__cursor.execute(BASIC_QUERY, parameters)
         except:
             return False
         return True

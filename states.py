@@ -21,6 +21,7 @@ class CallbackData:
     SHOWTICKET = 'showticket'
     BOOK_CONFIRM = 'confirm_book'
     BOOK_ACCEPT = 'accept_book'
+    BOOK_CONFIRM_ADMIN = 'admin_confirm_book'
 
 
 class ErrorState:

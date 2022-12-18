@@ -3,8 +3,7 @@ import pathlib
 import configparser
 import keyring
 
-from telegram import ParseMode
-from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler, InlineQueryHandler
+from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler
 from telegram.ext.filters import Filters
 
 from menu import MenuHandler
@@ -25,61 +24,21 @@ from functools import partial
 CONFIG_FILE = pathlib.Path('my.cnf').absolute()
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE.as_posix())
-
+# init connector
+connector = BotConnector(dbname=config['DATABASE']['name'],
+                         username=config['DATABASE']['user'],
+                         schema=config['DATABASE']['schema'],
+                         host=config['DATABASE']['host'],
+                         port=config['DATABASE']['port'])
 # read dialogs configuration
 text = DialogMessages('dialogs.cnf')
-menu = MenuHandler(text)
+menu = MenuHandler(text, connector)
 
 
 def debugger(update, context):
     """ For manual testing new features or development """
     print('DEBUGGER CALLBACK')
-    return menu.direct_switch(update, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
-
-
-def incorrect_input(update, context):
-    update.message.delete()
-    return ConversationState.MENU
-
-
-def start(update, context):
-    """ Initialize conversation """
-    update.message.delete()
-    user = update.message.from_user
-    context.user_data['uid'] = user['id']
-    # init connector
-    connector = BotConnector(dbname=config['DATABASE']['name'],
-                             username=config['DATABASE']['user'],
-                             schema=config['DATABASE']['schema'],
-                             host=config['DATABASE']['host'],
-                             port=config['DATABASE']['port'])
-    context.user_data['connector'] = connector
-    # request user data
-    if not (specname := connector.get_user_field(user['id'], field='specname')):
-        context.user_data['last_messages'] = [update.message.reply_text(text['MESSAGE', 'FIRST_MET'], reply_markup=None, parse_mode=ParseMode.MARKDOWN)]   # TODO Hide keyboard ?
-        return ConversationState.FIRST_MET
-
-    context.user_data['specname'] = specname
-    context.user_data['cvstate'] = 1      # user exists state
-    return menu.main(update, context)
-
-
-def first_met(update, context):
-    """ User first met: `specname` input """
-    user = update.message.from_user
-    specname = update.message.text[:100]
-    # collect user data and push to database
-    data = {
-        'specname': specname,
-        'username': user['username'],
-        'first_name': user['first_name'],
-        'last_name': user['last_name'],
-    }
-    context.user_data['connector'].set_user(user['id'], **data)
-    context.user_data['specname'] = specname
-    context.user_data['cvstate'] = 0      # new user state
-    update.message.delete()
-    return menu.main(update, context)
+    # return menu.direct_switch(update, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
 
 
 if __name__ == '__main__':
@@ -88,10 +47,10 @@ if __name__ == '__main__':
     dispatcher = updater.dispatcher
     # init handlers
     conversation_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.text, start)],
+        entry_points=[MessageHandler(Filters.text, menu.start)],
         states={    # conversation states dictionary
             ConversationState.FIRST_MET: [
-                MessageHandler(Filters.text, first_met)
+                MessageHandler(Filters.text, menu.first_met)
             ],
 
             ConversationState.MENU: [
@@ -106,6 +65,7 @@ if __name__ == '__main__':
                 CallbackQueryHandler(menu.book_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM}'),
                 CallbackQueryHandler(menu.book_result, pattern=rf'^{CallbackData.BOOK_ACCEPT}'),
                 CallbackQueryHandler(partial(menu.direct_switch, target=CallbackData.GOODBYE), pattern=rf'^{CallbackData.GOODBYE}'),
+                MessageHandler(Filters.text, menu.message)
             ],
 
             ConversationHandler.TIMEOUT: [
@@ -113,10 +73,11 @@ if __name__ == '__main__':
                 CallbackQueryHandler(partial(menu.direct_switch, target=CallbackData.ERROR, errstate=ErrorState.TIMEOUT)),
             ]
         },
-        fallbacks=[MessageHandler(Filters.all, incorrect_input)],
+        fallbacks=[],
         conversation_timeout=int(config['BOT']['timeout']),
     )
     dispatcher.add_handler(conversation_handler)
+    dispatcher.add_handler(CallbackQueryHandler(menu.admin_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM_ADMIN}'))
 
     # run bot
     updater.start_polling()
