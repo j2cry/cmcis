@@ -22,7 +22,7 @@ class CallbackData:
     BOOK_CONFIRM = 'confirm_book'
     BOOK_ACCEPT = 'accept_book'
     BOOK_CONFIRM_ADMIN = 'admin_confirm_book'
-
+    USER_LINK = ['[123](tg://user?id=%s)', 'https://t.me/%s']
 
 class ErrorState:
     UNKNOWN = 0

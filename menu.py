@@ -87,6 +87,7 @@ class MenuHandler:
             return ConversationState.FIRST_MET
 
         context.user_data['specname'] = specname
+        context.user_data['nickname'] = user['nickname']
         context.user_data['cvstate'] = 1      # user exists state
         return self.main(update, context)
 
@@ -111,7 +112,10 @@ class MenuHandler:
     def message(self, query, context, *, history):
         """ Handle direct message """
         value = query.message.text
-        query.message.delete()
+        try:
+            query.message.delete()
+        except:
+            print(f'It seems, this message was deleted by the user: {query.message}')
         if history.current.button == CallbackData.BOOK:
             places = ''.join(digits if (digits := re.findall(r'\d', value)) else ['0'])
             history.append(CallbackState(CallbackData.BOOK_CONFIRM, places))
@@ -156,7 +160,7 @@ class MenuHandler:
         context.user_data['evfilter'] = history.current.button
         # request actual events depending on pressed button
         events = self.connector.get_events(history.current.button, uid=uid)
-        booked = [ev for ev in events if ev['is_booked']]
+        booked = [ev for ev in events if ev['quantity']]
         # build zero-events keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'TO_RELATED_CHANNEL']: {'url': self.connector.settings['RELATED_CHANNEL']}},      # NOTE is it possible to handle this button?
@@ -178,7 +182,7 @@ class MenuHandler:
             kbd = build_inline([
                 {
                     self.text['BUTTON', 'MORE']: f'{CallbackData.MORE}:{ev["activity_id"]}',
-                    self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'
+                    self.text['BUTTON', 'BOOK', bool(ev['quantity'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'
                 },
                 # {self.text['BUTTON', 'BACK']: f'{context.user_data["history"][-2].button}'} if num == len(events) else {},    # BACK button example
                 {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN} if num == len(events) else {},
@@ -241,7 +245,7 @@ class MenuHandler:
                f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] else ())}"
         # prepare keyboard
         kbd = build_inline([
-            {self.text['BUTTON', 'BOOK', bool(ev['is_booked'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
+            {self.text['BUTTON', 'BOOK', bool(ev['quantity'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'SHOWMAP']: f'{CallbackData.SHOWMAP}:{ev["activity_id"]}'},
             {self.text['BUTTON', 'SHOWTICKET']: f'{CallbackData.SHOWTICKET}:{ev["activity_id"]}'} if ev['quantity'] else {},       # TODO
             {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
@@ -277,6 +281,12 @@ class MenuHandler:
     @parse_parameters
     def showticket(self, query, context, *, history, uid, evfilter):
         """ Show ticket info """
+        # request event information about selected activity
+        ev = self.connector.get_events(evfilter, uid=uid, eid=history.current.value)
+        if not ev:
+            return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
+        print(ev)
+
         return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
 
     @answer
@@ -366,7 +376,7 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def book_result(self, query, context, *, history, uid, evfilter, notification={}):
+    def book_result(self, query, context, *, history, uid, nickname, evfilter, notification={}):
         # clean part of context
         action_params = context.user_data.pop('action_params')
         # request event information
@@ -375,6 +385,7 @@ class MenuHandler:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
 
         # NOTE check SQL-side?
+        drop_book_state = int(action_params['quantity']) == 0
         if free_places_state := (int(ev['left_places']) + int(ev['quantity'])) >= int(action_params['quantity']):
             autoconfirm = (int(action_params['quantity']) <= int(self.connector.settings['MAXBOOK'])) or (bool(ev['confirmed']) and (int(action_params['quantity']) <= ev['quantity']))
         else:
@@ -383,7 +394,7 @@ class MenuHandler:
         # request admin confirmation if required
         if autoconfirm:
             book_state = self.connector.set_registration(uid, action_params['activity_id'], action_params['quantity'], autoconfirm)
-        else:
+        elif free_places_state:
             book_state = False
             parameters = (
                 self.connector.get_user_field(uid, field='specname'),
@@ -393,18 +404,26 @@ class MenuHandler:
                 ev['showtime'].strftime('%H:%M'),
             )
             TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST'] % parameters
-            kbd = build_inline([{
-                self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:1,{uid},{ev["activity_id"]},{action_params["quantity"]}',
-                self.text['BUTTON', 'CONFIRM', 0]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:0,{uid},,',
-            }])
+            kbd = build_inline([
+                {
+                    self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:1,{uid},{ev["activity_id"]},{action_params["quantity"]}',
+                    self.text['BUTTON', 'CONFIRM', 0]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:0,{uid},,',
+                },
+                # TODO добавить кнопку на чат с заявителем
+                # {self.text['BUTTON', 'APPLICANT_CHAT']: {'url': CallbackData.USER_LINK[bool(nickname)] % nickname if nickname else uid}}
+            ])
             # delete previous notification
             if ev["activity_id"] in notification:
-                notification[ev["activity_id"]].delete()
+                try:
+                    notification[ev["activity_id"]].delete()
+                except:
+                    notification.pop(ev["activity_id"])
             notification[ev["activity_id"]] = context.bot.send_message(self.connector.settings['BOT_ADMIN_ID'], TEXT, reply_markup=kbd)
             context.user_data['notification'] = notification
-
+        else:
+            book_state = False
         # prepare text
-        TEXT = self.text['MESSAGE', 'BOOK_RESULT', free_places_state + autoconfirm + book_state]
+        TEXT = self.text['MESSAGE', 'BOOK_RESULT', free_places_state + autoconfirm + book_state + drop_book_state]
         # prepare keyboard
         kbd = build_inline([
             {},
@@ -424,10 +443,13 @@ class MenuHandler:
         # update book confirmation
         if state:
             self.connector.set_registration(uid, activity_id, value=places, confirmed=bool(state))
-        query.message.delete()
+        try:
+            query.message.delete()
+        except:
+            print(f'It seems, this message was deleted by the user: {query.message}')
         # backward notification
         context.bot.send_message(uid, self.text['MESSAGE', 'BOOK_CONFIRM_RESPONSE', state])
-        return ConversationState.END
+        return ConversationState.END        # NOTE это сбразывает диалог, если он был
 
     def __delete_messages(self, context):
         evlist = context.user_data.get('last_messages', None)

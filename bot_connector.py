@@ -93,10 +93,9 @@ class BotConnector():
             parameters = (kwargs.get('uid'), self.settings['SERVICE_INTERVAL'], )
 
         elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
-            fields = ''', COALESCE(%s = ANY(r.visitors), FALSE) is_booked '''
-                    # TODO также проверять очередь бронирования
+            fields = ''
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
-            parameters = (kwargs.get('uid'), kwargs.get('uid'), self.settings['ACTUAL_INTERVAL'], )
+            parameters = (kwargs.get('uid'), self.settings['ACTUAL_INTERVAL'], )
 
         # select event
         if (eid := kwargs.get('eid', None)) is not None:
