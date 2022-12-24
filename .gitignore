@@ -1,11 +1,12 @@
-**/__pycache__/**
+**/__pycache__/
 /archieve/
 /pgdata/
 /sql/init.sql
 /sql/*.sqldump
-**/venv/**
+**/venv/
 .env
 draft.ipynb
 my.cnf
 production.env
 TODO
+/web/

@@ -1,6 +1,9 @@
 import re
+import qrcode
+from io import BytesIO
 from typing import List, Dict
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ParseMode
+from telegram.utils.helpers import create_deep_linked_url
 from states import ConversationState, CallbackData, ErrorState, CallbackState, HistoryState
 from functools import wraps
 from inspect import Parameter, signature
@@ -89,7 +92,10 @@ class MenuHandler:
         context.user_data['specname'] = specname
         context.user_data['nickname'] = user['username']
         context.user_data['cvstate'] = 1      # user exists state
-        return self.main(update, context)
+
+        # return self.check_ticket(update, context) if hasattr(context, 'args') else self.main(update, context)
+        is_admin = self.connector.get_user_field(user['id'], field='is_admin')
+        return self.check_ticket(update, context) if context.args and is_admin else self.main(update, context)
 
     def first_met(self, update, context):
         """ User first met: `specname` input """
@@ -142,7 +148,7 @@ class MenuHandler:
             # DEBUG MENU
             {self.text['BUTTON', 'ANNOUNCE']: CallbackData.ANNOUNCE},
             {self.text['BUTTON', 'BOOKING']: CallbackData.MYBOOKING},
-            {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE},
+            # {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE},
             {self.text['BUTTON', 'ABOUT']: CallbackData.ABOUT},
             {self.text['BUTTON', 'GOODBYE']: CallbackData.GOODBYE},
             # {'debug action': 'DEBUG'},
@@ -288,11 +294,23 @@ class MenuHandler:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
         if ev['quantity'] == 0:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.FORBIDDEN)
-        print(ev)
         # generate ticket
-        # TODO как-то генерить билетик
-        # ticket_id = ev['quantity']
+        ticket_link = create_deep_linked_url(context.bot.username, f'{uid}_{ev["activity_id"]}')
+        image = qrcode.make(ticket_link)
+        # convert PIL to bytes
+        bimage = BytesIO()
+        # bimage.name = 'image.jpeg'
+        image.save(bimage, 'JPEG')
+        bimage.seek(0)
 
+        # prepare keyboard
+        kbd = build_inline([
+            {self.text['BUTTON', 'BACK']: f'{history.prev.button}:{CallbackData.BACK}'},
+            {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
+        ])
+        # push message
+        context.user_data['last_messages'] = [query.message.reply_photo(bimage, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        bimage.close()
         return ConversationState.MENU
         # return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
 
@@ -312,7 +330,7 @@ class MenuHandler:
             ev['showtime'].strftime('%H:%M'),
             ev['place_title'],
         )
-        # left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2 
+        # left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2
         left_places_state = 0 if ev['left_places'] < 0 else 2 if ev['left_places'] > 2 else ev['left_places']
         # TEXT without BOOK_IS_CONFIRMED text
         TEXT = self.text['MESSAGE', 'BOOK_PROCESS_HEAD', ev['quantity'] > 0] % parameters + \
@@ -484,6 +502,32 @@ class MenuHandler:
         # backward notification
         context.bot.send_message(uid, self.text['MESSAGE', 'BOOK_CONFIRM_RESPONSE', state > 0])
         return ConversationState.END        # NOTE это сбрасывает диалог, если он был
+
+    @parse_parameters
+    def check_ticket(self, query, context, *, uid, ticketmsg):
+        print('CHECK TICKET COMMAND')
+        client_id, activity_id = context.args[0].split('_')
+        # get users booking info
+        ev = self.connector.get_events(CallbackData.ANNOUNCE, uid=client_id, eid=activity_id)
+        if not ev:
+            return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
+        # push_msg = context.bot.send_message if not ticketmsg else ticketmsg.edit_text
+        # push_msg = query.message.reply_text if not ticketmsg else ticketmsg.edit_text
+        if ticketmsg:
+            try:
+                ticketmsg.delete()
+            except:
+                print(f'It seems, this message was deleted by the user: {ticketmsg}')
+        # prepare text
+        parameters = (
+            ev['quantity'],
+            ev['activity_title'],
+            ev['showtime'].strftime('%d/%m/%Y'),
+            ev['showtime'].strftime('%H:%M'),
+        )
+        TEXT = self.text['MESSAGE', 'TICKET_INFO', ev['quantity'] > 0].agree_with_number(*parameters if ev['quantity'] > 0 else ())
+        context.user_data['ticketmsg'] = context.bot.send_message(uid, TEXT)
+        return ConversationState.END
 
     def __delete_messages(self, context):
         evlist = context.user_data.get('last_messages', None)

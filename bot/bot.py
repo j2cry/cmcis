@@ -3,7 +3,7 @@ import pathlib
 import configparser
 import keyring
 
-from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler
+from telegram.ext import Updater, ConversationHandler, MessageHandler, CallbackQueryHandler, CommandHandler
 from telegram.ext.filters import Filters
 
 from menu import MenuHandler
@@ -47,7 +47,10 @@ if __name__ == '__main__':
     dispatcher = updater.dispatcher
     # init handlers
     conversation_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.text, menu.start)],
+        entry_points=[
+            CommandHandler('start', menu.start),
+            MessageHandler(Filters.text, menu.start)
+        ],
         states={    # conversation states dictionary
             ConversationState.FIRST_MET: [
                 MessageHandler(Filters.text, menu.first_met)
@@ -78,6 +81,7 @@ if __name__ == '__main__':
     )
     dispatcher.add_handler(conversation_handler)
     dispatcher.add_handler(CallbackQueryHandler(menu.admin_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM_ADMIN}'))
+#     dispatcher.add_handler(CommandHandler('checkticket', menu.check_ticket))
 
     # run bot
     updater.start_polling()
