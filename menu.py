@@ -242,7 +242,8 @@ class MenuHandler:
                f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                f"{ev['addr']}\n" \
                f"{ev['activity_info']}\n" \
-               f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] > 0 else ())}"
+               f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0].agree_with_number(*(ev['left_places'],) if ev['left_places'] > 0 else ())}"
+            #    f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] > 0 else ())}"
         # prepare keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'BOOK', bool(ev['quantity'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
@@ -307,12 +308,15 @@ class MenuHandler:
         )
         # left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2 
         left_places_state = 0 if ev['left_places'] < 0 else 2 if ev['left_places'] > 2 else ev['left_places']
-        
+        # TEXT without BOOK_IS_CONFIRMED text
         TEXT = self.text['MESSAGE', 'BOOK_PROCESS_HEAD', ev['quantity'] > 0] % parameters + \
-               f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', left_places_state] % (ev['left_places'] if ev['left_places'] > 1 else ())}" + \
-               (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 3 + (ev['quantity'] > 1)] % ev['quantity']} {self.text['MESSAGE', 'BOOK_IS_CONFIRMED', ev['confirmed']]}" if ev['quantity'] else "") + \
+               f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', left_places_state].agree_with_number(*(ev['left_places'],) if ev['left_places'] > 1 else ())}" + \
+               (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 3].agree_with_number(ev['quantity'])}" if ev['quantity'] else "") + \
                f" {self.text['MESSAGE', 'BOOK_PROCESS_FINAL', ev['quantity'] > 0]}"
-
+        # TEXT = self.text['MESSAGE', 'BOOK_PROCESS_HEAD', ev['quantity'] > 0] % parameters + \
+        #        f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', left_places_state].agree_with_number(e*(ev['left_places'],) if ev['left_places'] > 1 else ())}" + \
+        #        (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 3].agree_with_number(ev['quantity'])} {self.text['MESSAGE', 'BOOK_IS_CONFIRMED', ev['confirmed']]}" if ev['quantity'] else "") + \
+        #        f" {self.text['MESSAGE', 'BOOK_PROCESS_FINAL', ev['quantity'] > 0]}"
         # prepare keyboard
         MAXBOOK = int(self.connector.settings['MAXBOOK'])
         one_ticket_state = 2 * bool(ev['left_places'] + ev['quantity'] > 1) + (ev['left_places'] == 1 and not ev['quantity'])
@@ -356,7 +360,8 @@ class MenuHandler:
             ev['showtime'].strftime('%d/%m/%Y'),
             ev['showtime'].strftime('%H:%M'),
         )
-        TEXT = self.text['MESSAGE', f'{history.prev.button}_CONFIRM', state] % parameters
+        # TEXT = self.text['MESSAGE', f'{history.prev.button}_CONFIRM', state] % parameters
+        TEXT = self.text['MESSAGE', f'BOOK_CONFIRM', state].agree_with_number(*parameters)
         # prepare keyboard
         kbd = build_inline([
             {
@@ -405,7 +410,7 @@ class MenuHandler:
                 ev['showtime'].strftime('%d/%m/%Y'),
                 ev['showtime'].strftime('%H:%M'),
             )
-            TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST'] % parameters
+            TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST'].agree_with_number(*parameters)
             kbd = build_inline([
                 {
                     self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:1,{uid},{ev["activity_id"]},{action_params["quantity"]}',
@@ -456,7 +461,7 @@ class MenuHandler:
                         overbook
                     )
                     # prepare text
-                    TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST', 1] % parameters
+                    TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST', 1].agree_with_number(*parameters)
                     # prepare keyboard
                     kbd = build_inline([{
                         self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:2,{uid},{activity_id},{places}',

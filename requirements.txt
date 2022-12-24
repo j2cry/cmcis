@@ -3,6 +3,8 @@ cachetools==4.2.2
 certifi==2022.9.24
 cffi==1.15.1
 cryptography==38.0.3
+DAWG-Python==0.7.2
+docopt==0.6.2
 importlib-metadata==5.0.0
 jaraco.classes==3.2.3
 jeepney==0.8.0
@@ -11,6 +13,8 @@ keyrings.alt==4.2.0
 more-itertools==9.0.0
 psycopg2-binary==2.9.5
 pycparser==2.21
+pymorphy2==0.9.1
+pymorphy2-dicts-ru==2.4.417127.4579844
 python-telegram-bot==13.14
 pytz==2022.6
 pytz-deprecation-shim==0.1.0.post0

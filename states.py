@@ -1,8 +1,11 @@
+import re
+import pymorphy2
 import pathlib
 import configparser
 import random
 from telegram.ext import ConversationHandler
 from collections import namedtuple
+from functools import partial
 
 
 class CallbackData:
@@ -56,6 +59,19 @@ class ConversationState:
     MENU = 2
 
 
+class MorphString(str):
+    def __init__(self, value):
+        super().__init__()
+        self.morph = pymorphy2.MorphAnalyzer()
+
+    def agree_with_number(self, *values):
+        text = self % values
+        # apply morph analyzer
+        variates = re.findall(r'{{(.*?)}}', text)
+        varforms = [num + ' ' + self.morph.parse(word)[0].make_agree_with_number(int(num)).word for num, word in map(str.split, variates)]
+        return re.sub(r'{{(.*?)}}', '{}', text).format(*varforms)
+
+
 class DialogMessages:
     """ Bot answers loader """
     def __init__(self, path, sep='||'):
@@ -72,4 +88,4 @@ class DialogMessages:
         state = index[2] if len(index) > 2 else 0
         if state == '@random':
             state = random.randint(0, len(values) - 1)
-        return values[state]
+        return MorphString(values[state])
