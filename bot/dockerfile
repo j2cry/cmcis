@@ -2,18 +2,33 @@ FROM python:3.9-slim
 LABEL maintainer="fragarie"
 LABEL description="CMCIS telegram bot"
 
+ARG DBHOST
+ARG DBPORT
+ARG DBNAME
+ARG SCHEMA
+ARG TGTOKEN
+ARG PSQL_USER
+ARG PSQL_PASSWORD
+
+# install additional utilities
 RUN apt-get update \
   && apt-get install -y --no-install-recommends gettext \
   && apt-get autoremove -yqq --purge \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
+# create user, venv and copy files
 RUN useradd -ms /bin/bash bot
 RUN python3 -m venv /home/bot/venv
 COPY requirements.txt /home/bot
 RUN /home/bot/venv/bin/pip3 install -r /home/bot/requirements.txt
 COPY . /home/bot/
 WORKDIR /home/bot
-
 USER bot
+
+# prepare workaround: NOTE credentials are shown in stdout!
+RUN envsubst < template.cnf > my.cnf \
+  && /home/bot/venv/bin/python3 keystore.py -s telegram -u botuser -p $TGTOKEN\
+  && /home/bot/venv/bin/python3 keystore.py -s $DBNAME -u $PSQL_USER -p $PSQL_PASSWORD
+
 ENTRYPOINT ["/home/bot/venv/bin/python3", "bot.py"]

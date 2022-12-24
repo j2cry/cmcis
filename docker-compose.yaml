@@ -44,17 +44,16 @@ services:
     restart: unless-stopped
   
   cmcis-bot:
-    build: .
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        export DBHOST=${DBHOST} DBPORT=${DBPORT} DBNAME=${DBNAME} SCHEMA=${SCHEMA} TGTOKEN=${TGTOKEN} PSQL_USER=${PSQL_USER}
-        envsubst < template.cnf > my.cnf
-        /home/bot/venv/bin/python3 keystore.py -s telegram -u botuser -p $TGTOKEN
-        /home/bot/venv/bin/python3 keystore.py -s $DBNAME -u $PSQL_USER -p $PSQL_PASSWORD
-        /home/bot/venv/bin/python3 bot.py
-        unset DBHOST DBPORT DBNAME SCHEMA TGTOKEN PSQL_USER
+    build:
+      context: bot
+      args:
+        DBHOST: ${DBHOST}
+        DBPORT: ${DBPORT}
+        DBNAME: ${DBNAME}
+        SCHEMA: ${SCHEMA}
+        TGTOKEN: ${TGTOKEN}
+        PSQL_USER: ${PSQL_USER}
+        PSQL_PASSWORD: ${PSQL_PASSWORD}
     depends_on:
       - cmcis-postgres
     restart: unless-stopped

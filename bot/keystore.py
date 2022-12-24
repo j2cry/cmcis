@@ -1,3 +1,4 @@
+#!/home/bot/venv/bin/python3
 import keyring
 import argparse
 
@@ -10,6 +11,8 @@ parser.add_argument('-p', help='password')
 args = parser.parse_args()
 
 if args.r:
-    print(keyring.get_password(args.s, args.u))
+    print(f'GET PWD FROM SERVICE `{args.s}` ON USER `{args.u}`')
+    print(f'`{keyring.get_password(args.s, args.u)}`')
 else:
+    print(f'SET PWD: `{args.p}` TO SERVICE `{args.s}` ON USER `{args.u}`')
     keyring.set_password(args.s, args.u, args.p)

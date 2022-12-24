@@ -32,7 +32,7 @@ class ErrorState:
     TIMEOUT = 1
     INDEV = 2
     UNAVAILABLE = 3
-    BOOK_DECLINED = 4
+    FORBIDDEN = 4
 
 
 CallbackState = namedtuple('CallbackState', 'button,value', defaults=[None] * 2)   # pressed button and its additional value

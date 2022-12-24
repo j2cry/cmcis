@@ -286,9 +286,15 @@ class MenuHandler:
         ev = self.connector.get_events(evfilter, uid=uid, eid=history.current.value)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
+        if ev['quantity'] == 0:
+            return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.FORBIDDEN)
         print(ev)
+        # generate ticket
+        # TODO как-то генерить билетик
+        # ticket_id = ev['quantity']
 
-        return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
+        return ConversationState.MENU
+        # return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
 
     @answer
     @parse_parameters
