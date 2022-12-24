@@ -87,7 +87,7 @@ class MenuHandler:
             return ConversationState.FIRST_MET
 
         context.user_data['specname'] = specname
-        context.user_data['nickname'] = user['nickname']
+        context.user_data['nickname'] = user['username']
         context.user_data['cvstate'] = 1      # user exists state
         return self.main(update, context)
 
@@ -145,7 +145,7 @@ class MenuHandler:
             {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE},
             {self.text['BUTTON', 'ABOUT']: CallbackData.ABOUT},
             {self.text['BUTTON', 'GOODBYE']: CallbackData.GOODBYE},
-            {'debug action': 'DEBUG'},
+            # {'debug action': 'DEBUG'},
         ])
         self.__delete_messages(context)
         infotext = self.text['MESSAGE', 'WELCOME', 2] if (history.prev.button == CallbackData.MAIN) else self.text['MESSAGE', 'WELCOME', cvstate] % context.user_data['specname']
@@ -409,8 +409,8 @@ class MenuHandler:
                     self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:1,{uid},{ev["activity_id"]},{action_params["quantity"]}',
                     self.text['BUTTON', 'CONFIRM', 0]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:0,{uid},,',
                 },
-                # TODO добавить кнопку на чат с заявителем
-                # {self.text['BUTTON', 'APPLICANT_CHAT']: {'url': CallbackData.USER_LINK[bool(nickname)] % nickname if nickname else uid}}
+                # applicant chat link
+                {self.text['BUTTON', 'APPLICANT_CHAT']: {'url': CallbackData.USER_LINK[bool(nickname)] % (nickname if nickname else uid)}}
             ])
             # delete previous notification
             if ev["activity_id"] in notification:
