@@ -191,7 +191,7 @@ class MenuHandler:
             TEXT = f"*{ev['activity_title']}*\n" \
                    f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                    f"{(ev['announce']) if ev['announce'] else ''}\n" \
-                   f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] else ())}\n" \
+                   f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] > 0 else ())}\n" \
                    f""
                    # TODO текст по state: про места, очередь, бронирование итп
             evlist.append(query.message.reply_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN))
@@ -242,7 +242,7 @@ class MenuHandler:
                f"{ev['showtime'].strftime('%d/%m/%Y %H:%M')}, {ev['place_title']}\n" \
                f"{ev['addr']}\n" \
                f"{ev['activity_info']}\n" \
-               f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] else ())}"
+               f"{self.text['FILLER', 'LEFT_PLACES', ev['left_places'] > 0] % ((ev['left_places'],) if ev['left_places'] > 0 else ())}"
         # prepare keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'BOOK', bool(ev['quantity'])]: f'{CallbackData.BOOK}:{ev["activity_id"]}'},
@@ -305,7 +305,9 @@ class MenuHandler:
             ev['showtime'].strftime('%H:%M'),
             ev['place_title'],
         )
-        left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2
+        # left_places_state = ev['left_places'] if ev['left_places'] < 2 else 2 
+        left_places_state = 0 if ev['left_places'] < 0 else 2 if ev['left_places'] > 2 else ev['left_places']
+        
         TEXT = self.text['MESSAGE', 'BOOK_PROCESS_HEAD', ev['quantity'] > 0] % parameters + \
                f" {self.text['MESSAGE', 'BOOK_PROCESS_BODY', left_places_state] % (ev['left_places'] if ev['left_places'] > 1 else ())}" + \
                (f"\n{self.text['MESSAGE', 'BOOK_PROCESS_BODY', 3 + (ev['quantity'] > 1)] % ev['quantity']} {self.text['MESSAGE', 'BOOK_IS_CONFIRMED', ev['confirmed']]}" if ev['quantity'] else "") + \
@@ -442,14 +444,35 @@ class MenuHandler:
         state = int(state)
         # update book confirmation
         if state:
+            # request activity info for overbooking check
+            if state != 2:    # 2 means force confirm
+                ev = self.connector.get_events(CallbackData.ANNOUNCE, uid=uid, eid=activity_id)
+                overbook = int(places) - (ev['quantity'] + ev['left_places'])
+                if overbook > 0:
+                    parameters = (
+                        ev['activity_title'],
+                        ev['showtime'].strftime('%d/%m/%Y'),
+                        ev['showtime'].strftime('%H:%M'),
+                        overbook
+                    )
+                    # prepare text
+                    TEXT = self.text['MESSAGE', 'BOOK_CONFIRM_REQUEST', 1] % parameters
+                    # prepare keyboard
+                    kbd = build_inline([{
+                        self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:2,{uid},{activity_id},{places}',
+                        self.text['BUTTON', 'CONFIRM', 0]: f'{CallbackData.BOOK_CONFIRM_ADMIN}:0,{uid},,',
+                    }])
+                    # push message
+                    query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)
+                    return ConversationState.END
             self.connector.set_registration(uid, activity_id, value=places, confirmed=bool(state))
         try:
             query.message.delete()
         except:
             print(f'It seems, this message was deleted by the user: {query.message}')
         # backward notification
-        context.bot.send_message(uid, self.text['MESSAGE', 'BOOK_CONFIRM_RESPONSE', state])
-        return ConversationState.END        # NOTE это сбразывает диалог, если он был
+        context.bot.send_message(uid, self.text['MESSAGE', 'BOOK_CONFIRM_RESPONSE', state > 0])
+        return ConversationState.END        # NOTE это сбрасывает диалог, если он был
 
     def __delete_messages(self, context):
         evlist = context.user_data.get('last_messages', None)
