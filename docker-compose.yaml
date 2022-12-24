@@ -3,24 +3,24 @@ version: '3'
 
 services:
   pginit:
-    build: postgres-init
-    container_name: postgres-init
-    environment:
-      DBNAME: ${DBNAME}
-      SCHEMA: ${SCHEMA}
-      PSQL_HANDLER_USER: ${PSQL_HANDLER_USER}
-      PSQL_HANDLER_PASSWORD: ${PSQL_HANDLER_PASSWORD}
-      PSQL_USER: ${PSQL_USER}
-      PSQL_PASSWORD: ${PSQL_PASSWORD}
+    build:
+      context: postgres-init
+      args:
+        DBNAME: ${DBNAME}
+        SCHEMA: ${SCHEMA}
+        PSQL_HANDLER_USER: ${PSQL_HANDLER_USER}
+        PSQL_HANDLER_PASSWORD: ${PSQL_HANDLER_PASSWORD}
+        PSQL_USER: ${PSQL_USER}
+        PSQL_PASSWORD: ${PSQL_PASSWORD}
 
-      SERVICE_INTERVAL: ${SERVICE_INTERVAL}
-      ACTUAL_INTERVAL: ${ACTUAL_INTERVAL}
-      MAXBOOK: ${MAXBOOK}
-      BOT_ADMIN_ID: ${BOT_ADMIN_ID}
-      RELATED_CHANNEL: ${RELATED_CHANNEL}
+        SERVICE_INTERVAL: ${SERVICE_INTERVAL}
+        ACTUAL_INTERVAL: ${ACTUAL_INTERVAL}
+        MAXBOOK: ${MAXBOOK}
+        BOT_ADMIN_ID: ${BOT_ADMIN_ID}
+        RELATED_CHANNEL: ${RELATED_CHANNEL}
+    container_name: postgres-init
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
-    command: sh -c "envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql"
 
   cmcis-postgres:
     image: postgres:15

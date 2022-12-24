@@ -4,4 +4,19 @@ LABEL description="Container with gettext package for using envsubst in SQL init
 
 RUN apk add gettext
 
-CMD ["sh"]
+ARG DBNAME
+ARG SCHEMA
+ARG PSQL_HANDLER_USER
+ARG PSQL_HANDLER_PASSWORD
+ARG PSQL_USER
+ARG PSQL_PASSWORD
+
+ARG SERVICE_INTERVAL
+ARG ACTUAL_INTERVAL
+ARG MAXBOOK
+ARG BOT_ADMIN_ID
+ARG RELATED_CHANNEL
+
+RUN envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql
+
+ENTRYPOINT ["sh"]
