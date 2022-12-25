@@ -33,6 +33,7 @@ class ErrorState:
     INDEV = 2
     UNAVAILABLE = 3
     FORBIDDEN = 4
+    SERVERSIDE = 5
 
 
 CallbackState = namedtuple('CallbackState', 'button,value', defaults=[None] * 2)   # pressed button and its additional value

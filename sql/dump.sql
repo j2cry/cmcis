@@ -137,7 +137,7 @@ CREATE TABLE harpy.booking (
     quantity smallint DEFAULT 0,
     modified timestamp without time zone DEFAULT now() NOT NULL,
     num_changes smallint DEFAULT 0,
-    confirmed boolean DEFAULT false,
+    redeemed boolean DEFAULT false,
     created timestamp without time zone DEFAULT now() NOT NULL
 );
 

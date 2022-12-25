@@ -121,7 +121,7 @@ class MenuHandler:
         try:
             query.message.delete()
         except:
-            print(f'It seems, this message was deleted by the user: {query.message}')
+            print(f'It seems, this message was deleted by the user: {query.message.message_id}')
         if history.current.button == CallbackData.BOOK:
             places = ''.join(digits if (digits := re.findall(r'\d', value)) else ['0'])
             history.append(CallbackState(CallbackData.BOOK_CONFIRM, places))
@@ -137,21 +137,12 @@ class MenuHandler:
         cvstate = context.user_data['cvstate']      # conversation state
         # build keyboard
         kbd = build_inline([
-            # PRODUCTION MENU
-            # {self.text['BUTTON', 'ANNOUNCE']: CallbackData.ANNOUNCE} if not is_admin else {},
-            # {self.text['BUTTON', 'BOOKING']: CallbackData.MYBOOKING} if not is_admin else {},
-            # {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE} if is_admin else {},
-            # {self.text['BUTTON', 'ABOUT']: CallbackData.ABOUT} if not is_admin else {},
-            # {self.text['BUTTON', 'GOODBYE']: CallbackData.GOODBYE},
-            # {'debug action': 'DEBUG'} if is_admin else {},
-
-            # DEBUG MENU
             {self.text['BUTTON', 'ANNOUNCE']: CallbackData.ANNOUNCE},
             {self.text['BUTTON', 'BOOKING']: CallbackData.MYBOOKING},
-            # {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE},
+            # {self.text['BUTTON', 'SERVICE']: CallbackData.SERVICE} if is_admin else {},
             {self.text['BUTTON', 'ABOUT']: CallbackData.ABOUT},
             {self.text['BUTTON', 'GOODBYE']: CallbackData.GOODBYE},
-            # {'debug action': 'DEBUG'},
+            # {'debug action': 'DEBUG'} if is_admin else {},
         ])
         self.__delete_messages(context)
         infotext = self.text['MESSAGE', 'WELCOME', 2] if (history.prev.button == CallbackData.MAIN) else self.text['MESSAGE', 'WELCOME', cvstate] % context.user_data['specname']
@@ -299,7 +290,6 @@ class MenuHandler:
         image = qrcode.make(ticket_link)
         # convert PIL to bytes
         bimage = BytesIO()
-        # bimage.name = 'image.jpeg'
         image.save(bimage, 'JPEG')
         bimage.seek(0)
 
@@ -309,7 +299,8 @@ class MenuHandler:
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
         ])
         # push message
-        context.user_data['last_messages'] = [query.message.reply_photo(bimage, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
+        self.__delete_messages(context)
+        context.user_data['last_messages'] = [query.message.reply_photo(bimage, caption='', reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         bimage.close()
         return ConversationState.MENU
         # return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.INDEV)
@@ -418,13 +409,15 @@ class MenuHandler:
         # NOTE check SQL-side?
         drop_book_state = int(action_params['quantity']) == 0
         if free_places_state := (int(ev['left_places']) + int(ev['quantity'])) >= int(action_params['quantity']):
-            autoconfirm = (int(action_params['quantity']) <= int(self.connector.settings['MAXBOOK'])) or (bool(ev['confirmed']) and (int(action_params['quantity']) <= ev['quantity']))
+            # autoconfirm = (int(action_params['quantity']) <= int(self.connector.settings['MAXBOOK'])) or (bool(ev['confirmed']) and (int(action_params['quantity']) <= ev['quantity']))
+            autoconfirm = (int(action_params['quantity']) <= int(self.connector.settings['MAXBOOK'])) or (int(action_params['quantity']) <= ev['quantity'])
         else:
             autoconfirm = False
 
         # request admin confirmation if required
         if autoconfirm:
-            book_state = self.connector.set_registration(uid, action_params['activity_id'], action_params['quantity'], autoconfirm)
+            # book_state = self.connector.set_registration(uid, action_params['activity_id'], action_params['quantity'], autoconfirm)     # for additional confirmation feature
+            book_state = self.connector.set_registration(uid, action_params['activity_id'], action_params['quantity'])
         elif free_places_state:
             book_state = False
             parameters = (
@@ -494,25 +487,27 @@ class MenuHandler:
                     # push message
                     query.message.edit_text(TEXT, reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)
                     return ConversationState.END
-            self.connector.set_registration(uid, activity_id, value=places, confirmed=bool(state))
+            # self.connector.set_registration(uid, activity_id, value=places, confirmed=bool(state))
+            self.connector.set_registration(uid, activity_id, value=places)
         try:
             query.message.delete()
         except:
-            print(f'It seems, this message was deleted by the user: {query.message}')
+            print(f'It seems, this message was deleted by the user: {query.message.message_id}')
         # backward notification
         context.bot.send_message(uid, self.text['MESSAGE', 'BOOK_CONFIRM_RESPONSE', state > 0])
         return ConversationState.END        # NOTE это сбрасывает диалог, если он был
 
     @parse_parameters
     def check_ticket(self, query, context, *, uid, ticketmsg):
-        print('CHECK TICKET COMMAND')
         client_id, activity_id = context.args[0].split('_')
         # get users booking info
         ev = self.connector.get_events(CallbackData.ANNOUNCE, uid=client_id, eid=activity_id)
         if not ev:
             return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
-        # push_msg = context.bot.send_message if not ticketmsg else ticketmsg.edit_text
-        # push_msg = query.message.reply_text if not ticketmsg else ticketmsg.edit_text
+        # redeem ticket
+        redeem_state = (ev['quantity'] > 0) and self.connector.set_registration(client_id, activity_id, redeemed=True)
+        if not redeem_state:
+            return self.direct_switch(query, context, target=CallbackData.ERROR, errstate=ErrorState.SERVERSIDE)
         if ticketmsg:
             try:
                 ticketmsg.delete()
@@ -525,7 +520,9 @@ class MenuHandler:
             ev['showtime'].strftime('%d/%m/%Y'),
             ev['showtime'].strftime('%H:%M'),
         )
-        TEXT = self.text['MESSAGE', 'TICKET_INFO', ev['quantity'] > 0].agree_with_number(*parameters if ev['quantity'] > 0 else ())
+        # prepare text            
+        TEXT = self.text['MESSAGE', 'TICKET_INFO', ev['quantity'] > 0].agree_with_number(*parameters if ev['quantity'] > 0 else ()) + \
+            (f"\n{self.text['MESSAGE', 'REDEEMED']}" if ev['redeemed'] else '')
         context.user_data['ticketmsg'] = context.bot.send_message(uid, TEXT)
         return ConversationState.END
 
