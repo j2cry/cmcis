@@ -13,10 +13,11 @@ ARG PSQL_PASSWORD
 
 ARG SERVICE_INTERVAL
 ARG ACTUAL_INTERVAL
+ARG TIMEZONE
 ARG MAXBOOK
 ARG BOT_ADMIN_ID
 ARG RELATED_CHANNEL
 
-RUN envsubst < /docker-entrypoint-initdb.d/init.sqltemplate > /docker-entrypoint-initdb.d/init.sql
-
-ENTRYPOINT ["sh"]
+COPY ./init.sqltemplate /home/
+RUN envsubst < /home/init.sqltemplate > /home/init.sql
+ENTRYPOINT [ "cp", "/home/init.sql", "/pginit/" ]

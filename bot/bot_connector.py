@@ -85,17 +85,17 @@ class BotConnector():
         return user_info[0].get(field, default) if user_info else {}
 
     @manage_connection
-    def get_events(self, mode=CallbackData.ANNOUNCE, **kwargs):
+    def get_events(self, *, mode=CallbackData.ANNOUNCE, uid, **kwargs):
         """ Get required events """
         if mode == CallbackData.SERVICE:
             fields = ', r.visitors'
             condition = 'a.active AND (NOW() < a.showtime + INTERVAL %s)'
-            parameters = (kwargs.get('uid'), self.settings['SERVICE_INTERVAL'], )
+            parameters = (uid, self.settings['SERVICE_INTERVAL'], )
 
         elif mode in (CallbackData.ANNOUNCE, CallbackData.MYBOOKING):
             fields = ''
             condition = '''a.active AND (a.openreg <= NOW()) AND (NOW() < a.showtime + INTERVAL %s)'''
-            parameters = (kwargs.get('uid'), self.settings['ACTUAL_INTERVAL'], )
+            parameters = (uid, self.settings['ACTUAL_INTERVAL'], )
 
         # select event
         if (eid := kwargs.get('eid', None)) is not None:

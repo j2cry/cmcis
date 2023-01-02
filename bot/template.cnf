@@ -6,4 +6,5 @@ user=$PSQL_USER
 schema=$SCHEMA
 
 [BOT]
-timeout=300
+timeout=$TIMEOUT
+refresh=$REFRESH

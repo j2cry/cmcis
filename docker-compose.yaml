@@ -4,7 +4,7 @@ version: '3'
 services:
   pginit:
     build:
-      context: postgres-init
+      context: sql
       args:
         DBNAME: ${DBNAME}
         SCHEMA: ${SCHEMA}
@@ -15,12 +15,13 @@ services:
 
         SERVICE_INTERVAL: ${SERVICE_INTERVAL}
         ACTUAL_INTERVAL: ${ACTUAL_INTERVAL}
+        TIMEZONE: ${TIMEZONE}
         MAXBOOK: ${MAXBOOK}
         BOT_ADMIN_ID: ${BOT_ADMIN_ID}
         RELATED_CHANNEL: ${RELATED_CHANNEL}
     container_name: postgres-init
     volumes:
-      - ./sql:/docker-entrypoint-initdb.d
+      - ./sql:/pginit
 
   cmcis-postgres:
     image: postgres:15
@@ -34,7 +35,7 @@ services:
       - ./sql:/docker-entrypoint-initdb.d
       # - ./pgdata:/var/lib/postgresql/data
     ports:
-      - 5432:5432        
+      - 5432:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PSQL_USER} -d ${DBNAME}"]
       interval: 5s
@@ -42,7 +43,7 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-  
+
   cmcis-bot:
     build:
       context: bot
@@ -54,6 +55,8 @@ services:
         TGTOKEN: ${TGTOKEN}
         PSQL_USER: ${PSQL_USER}
         PSQL_PASSWORD: ${PSQL_PASSWORD}
+        TIMEOUT: ${TIMEOUT:-300}
+        REFRESH: ${REFRESH:-300}
     depends_on:
       - cmcis-postgres
     restart: unless-stopped
