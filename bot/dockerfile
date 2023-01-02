@@ -9,6 +9,8 @@ ARG SCHEMA
 ARG TGTOKEN
 ARG PSQL_USER
 ARG PSQL_PASSWORD
+ARG TIMEOUT
+ARG REFRESH
 
 # install additional utilities
 RUN apt-get update \
