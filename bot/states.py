@@ -25,6 +25,7 @@ class CallbackData:
     BOOK_CONFIRM = 'confirm_book'
     BOOK_ACCEPT = 'accept_book'
     BOOK_CONFIRM_ADMIN = 'admin_confirm_book'
+    USER_CONFIRN_NOTIFICATION = 'user_confirm_notification'
     USER_LINK = ['tg://user?id=%s', 'https://t.me/%s']
 
 class ErrorState:

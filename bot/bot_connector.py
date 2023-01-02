@@ -85,7 +85,7 @@ class BotConnector():
         return user_info[0].get(field, default) if user_info else {}
 
     @manage_connection
-    def get_events(self, *, mode=CallbackData.ANNOUNCE, uid, **kwargs):
+    def get_events(self, mode=CallbackData.ANNOUNCE, *, uid, **kwargs):
         """ Get required events """
         if mode == CallbackData.SERVICE:
             fields = ', r.visitors'
@@ -117,6 +117,7 @@ class BotConnector():
                 a.announce,
                 a.info activity_info,
                 a.showtime,
+                a.notify_at,
                 p.title place_title,
                 p.info place_info,
                 p.addr,

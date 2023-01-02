@@ -40,6 +40,7 @@ CREATE TABLE harpy.activity (
     max_visitors smallint,
     showtime timestamp without time zone,
     openreg timestamp without time zone,
+    notify_at timestamp without time zone,
     announce text,
     info text,
     active boolean DEFAULT true,
@@ -82,6 +83,13 @@ COMMENT ON COLUMN harpy.activity.showtime IS 'Date and time of show';
 --
 
 COMMENT ON COLUMN harpy.activity.openreg IS 'Start registration date & time';
+
+
+--
+-- Name: COLUMN activity.notify_at; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.activity.notify_at IS 'Notification time';
 
 
 --
@@ -180,6 +188,13 @@ COMMENT ON COLUMN harpy.booking.num_changes IS 'Number of changes';
 
 
 --
+-- Name: COLUMN booking.redeemed; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.booking.redeemed IS 'Flag: ticket was scanned';
+
+
+--
 -- Name: client; Type: TABLE; Schema: harpy; Owner: cmcismaster
 --
 
@@ -201,6 +216,13 @@ ALTER TABLE harpy.client OWNER TO cmcismaster;
 --
 
 COMMENT ON COLUMN harpy.client.client_id IS 'Telegram user identifier';
+
+
+--
+-- Name: COLUMN client.specname; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.client.specname IS 'in-bot user name';
 
 
 --
@@ -230,14 +252,21 @@ ALTER TABLE harpy.place OWNER TO cmcismaster;
 -- Name: COLUMN place.place_id; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.place.place_id IS 'Place identifier';
+COMMENT ON COLUMN harpy.place.place_id IS 'identifier';
 
 
 --
 -- Name: COLUMN place.title; Type: COMMENT; Schema: harpy; Owner: cmcismaster
 --
 
-COMMENT ON COLUMN harpy.place.title IS 'Place title';
+COMMENT ON COLUMN harpy.place.title IS 'Title';
+
+
+--
+-- Name: COLUMN place.addr; Type: COMMENT; Schema: harpy; Owner: cmcismaster
+--
+
+COMMENT ON COLUMN harpy.place.addr IS 'Address';
 
 
 --

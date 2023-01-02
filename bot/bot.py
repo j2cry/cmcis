@@ -38,7 +38,6 @@ menu = MenuHandler(text, connector)
 def debugger(update, context):
     """ For manual testing new features or development """
     print('DEBUGGER CALLBACK')
-    # return menu.direct_switch(update, context, target=CallbackData.ERROR, errstate=ErrorState.UNAVAILABLE)
 
 
 if __name__ == '__main__':
@@ -77,12 +76,13 @@ if __name__ == '__main__':
             ]
         },
         fallbacks=[],
-        conversation_timeout=int(config['BOT']['timeout']),
+        conversation_timeout=config['BOT'].getint('timeout', 300),
     )
     dispatcher.add_handler(conversation_handler)
     dispatcher.add_handler(CallbackQueryHandler(menu.admin_confirm, pattern=rf'^{CallbackData.BOOK_CONFIRM_ADMIN}'))
-#     dispatcher.add_handler(CommandHandler('checkticket', menu.check_ticket))
-
+    dispatcher.add_handler(CallbackQueryHandler(menu.user_confirm, pattern=rf'^{CallbackData.USER_CONFIRN_NOTIFICATION}'))
+    # prepare notifications job
+    updater.job_queue.run_repeating(menu.refresh_notifiers, config['BOT'].getint('refresh', 300))
     # run bot
     updater.start_polling()
     updater.idle()

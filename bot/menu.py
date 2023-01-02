@@ -1,5 +1,7 @@
 import re
 import qrcode
+import pytz
+import datetime as dt
 from io import BytesIO
 from typing import List, Dict
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ParseMode
@@ -43,7 +45,7 @@ class MenuHandler:
         @wraps(method)
         def wrapper(self, update, context, **kwargs):
             if hasattr(update, 'callback_query') and (query := update.callback_query):
-                query.answer()
+                query.answer()      # bound in try?
             else:
                 query = update
             return method(self, query, context, **kwargs)
@@ -559,3 +561,55 @@ class MenuHandler:
         kbd = build_reply([[self.text['BUTTON', 'HELLO']]], one_time_keyboard=True, resize_keyboard=True)
         context.user_data['last_messages'] = [query.message.reply_text(self.text['MESSAGE', target, errstate if target == CallbackData.ERROR else '@random'], reply_markup=kbd, parse_mode=ParseMode.MARKDOWN)]
         return ConversationState.END
+    
+    def notify(self, context):        
+        print(f'send notification for activity {context.job.context["activity_id"]}')
+        ev = self.connector.get_events(CallbackData.SERVICE, uid=None, eid=context.job.context["activity_id"])
+        # prepare keyboard
+        kbd = build_inline([
+            {
+                self.text['BUTTON', 'CONFIRM', 1]: f'{CallbackData.USER_CONFIRN_NOTIFICATION}:1,',
+                self.text['BUTTON', 'CONFIRM', 0]: f'{CallbackData.USER_CONFIRN_NOTIFICATION}:0,{ev["activity_id"]}',
+            },
+        ])
+        # prepare notification
+        for visitor in ev['visitors']:
+            parameters = (
+                self.connector.get_user_field(visitor, field='specname'),
+                ev['activity_title'],
+                ev['showtime'].strftime('%d/%m/%Y'),
+                ev['showtime'].strftime('%H:%M'),
+                ev['place_title'],
+            )
+            TEXT = self.text['MESSAGE', 'NOTIFICATION'] % parameters
+            context.bot.send_message(visitor, TEXT, reply_markup=kbd)
+
+    @answer
+    @parse_parameters
+    def user_confirm(self, query, context):
+        """ User notify confirmation """
+        query.message.delete()
+        print(query.data)
+        # TODO reset booking if NO
+
+    def refresh_notifiers(self, context):
+        """ Refresh notifier jobs """
+        # collect jobs
+        jobs = {jb.name: jb for jb in context.job_queue.jobs()}
+        events = self.connector.get_events(uid=None)
+        timezone = self.connector.settings['TIMEZONE']
+        # refresh loop
+        for ev in events:
+            if ev['notify_at'] and ev['notify_at'] > dt.datetime.now():
+                if str(ev['activity_id']) in jobs:
+                    if ev['notify_at'] != jobs[str(ev['activity_id'])].next_t.replace(tzinfo=None):
+                        print(f'change notifier job for activity {ev["activity_id"]} from {jobs[str(ev["activity_id"])].next_t} to {ev["notify_at"]}')
+                        jobs[str(ev['activity_id'])].schedule_removal()
+                        context.job_queue.run_once(self.notify, pytz.timezone(timezone).localize(ev['notify_at']), context={'activity_id': ev['activity_id']}, name=str(ev['activity_id']))
+                else:
+                    print(f'add notifier job for activity {ev["activity_id"]} at {ev["notify_at"]}')
+                    context.job_queue.run_once(self.notify, pytz.timezone(timezone).localize(ev['notify_at']), context={'activity_id': ev['activity_id']}, name=str(ev['activity_id']))
+            else:
+                if str(ev['activity_id']) in jobs:
+                    print(f'remove notifier job for activity {ev["activity_id"]}')
+                    jobs[str(ev['activity_id'])].schedule_removal()
