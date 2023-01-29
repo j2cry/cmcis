@@ -1,0 +1,62 @@
+# Environment variables must be declared in .env file
+version: '3'
+
+services:
+  pginit:
+    build:
+      context: sql
+      args:
+        DBNAME: ${DBNAME}
+        SCHEMA: ${SCHEMA}
+        PSQL_HANDLER_USER: ${PSQL_HANDLER_USER}
+        PSQL_HANDLER_PASSWORD: ${PSQL_HANDLER_PASSWORD}
+        PSQL_USER: ${PSQL_USER}
+        PSQL_PASSWORD: ${PSQL_PASSWORD}
+
+        SERVICE_INTERVAL: ${SERVICE_INTERVAL}
+        ACTUAL_INTERVAL: ${ACTUAL_INTERVAL}
+        TIMEZONE: ${TIMEZONE}
+        MAXBOOK: ${MAXBOOK}
+        BOT_ADMIN_ID: ${BOT_ADMIN_ID}
+        RELATED_CHANNEL: ${RELATED_CHANNEL}
+    container_name: postgres-init
+    volumes:
+      - ./sql:/pginit
+
+  cmcis-postgres:
+    image: postgres:15
+    container_name: ${DBHOST}
+    environment:
+      POSTGRES_DB: ${DBNAME}
+      POSTGRES_USER: ${PSQL_MASTER_USER}
+      POSTGRES_PASSWORD: ${PSQL_MASTER_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+      - ./pgdata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USER} -d ${DBNAME}"]
+      interval: 5s
+      timeout: 15s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  cmcis-bot:
+    build:
+      context: bot
+      args:
+        DBHOST: ${DBHOST}
+        DBPORT: ${DBPORT}
+        DBNAME: ${DBNAME}
+        SCHEMA: ${SCHEMA}
+        TGTOKEN: ${TGTOKEN}
+        PSQL_USER: ${PSQL_USER}
+        PSQL_PASSWORD: ${PSQL_PASSWORD}
+        TIMEOUT: ${TIMEOUT:-300}
+        REFRESH: ${REFRESH:-300}
+    depends_on:
+      - cmcis-postgres
+    restart: unless-stopped

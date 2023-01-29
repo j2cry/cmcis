@@ -1,0 +1,23 @@
+FROM alpine:3.17
+LABEL maintainer="fragarie"
+LABEL description="Container with gettext package for using envsubst in SQL initialization"
+
+RUN apk add gettext
+
+ARG DBNAME
+ARG SCHEMA
+ARG PSQL_HANDLER_USER
+ARG PSQL_HANDLER_PASSWORD
+ARG PSQL_USER
+ARG PSQL_PASSWORD
+
+ARG SERVICE_INTERVAL
+ARG ACTUAL_INTERVAL
+ARG TIMEZONE
+ARG MAXBOOK
+ARG BOT_ADMIN_ID
+ARG RELATED_CHANNEL
+
+COPY ./init.sqltemplate /home/
+RUN envsubst < /home/init.sqltemplate > /home/init.sql
+ENTRYPOINT [ "cp", "/home/init.sql", "/pginit/" ]

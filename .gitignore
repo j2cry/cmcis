@@ -1,0 +1,13 @@
+/.vscode/
+**/__pycache__/
+/archieve/
+/pgdata/
+/sql/init.sql
+/sql/*.sqldump
+**/venv/
+.env
+draft.ipynb
+my.cnf
+production.env
+TODO
+/web/
