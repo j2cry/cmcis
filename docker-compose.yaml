@@ -33,7 +33,7 @@ services:
       PGDATA: /var/lib/postgresql/data
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
-      # - ./pgdata:/var/lib/postgresql/data
+      - ./pgdata:/var/lib/postgresql/data
     ports:
       - 5432:5432
     healthcheck:

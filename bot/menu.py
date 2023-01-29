@@ -199,12 +199,12 @@ class MenuHandler:
 
     @answer
     @parse_parameters
-    def service_activities(self, query, context, *, history, uid):
+    def service_activities(self, query, context, *, history):
         """ Manage actual activities """
         # setup context
         context.user_data['evfilter'] = history.current.button
         # request actual events depending on pressed button
-        events = self.connector.get_events(history.current.button, uid=uid)
+        events = self.connector.get_events(CallbackData.SERVICE, uid=None)
         # build zero-events keyboard
         kbd = build_inline([
             {self.text['BUTTON', 'TO_MAIN_MENU']: CallbackData.MAIN}
